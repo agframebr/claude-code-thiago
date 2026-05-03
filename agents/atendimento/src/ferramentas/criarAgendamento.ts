@@ -14,7 +14,7 @@ export function criarCriarAgendamento(ctx: Pick<ContextoAgente, 'telefone' | 'id
   const buscarJanelas = criarBuscarJanelasDisponiveis();
 
   return tool(
-    async ({ evento_inicio, duracao_minutos, titulo, descricao, id_profissional }) => {
+    async ({ evento_inicio, duracao_minutos, titulo, descricao, id_profissional, email_lead }) => {
       log.debug({ evento_inicio, duracao_minutos, id_profissional }, 'criarAgendamento chamado');
 
       const dtInicio = parseISO(evento_inicio);
@@ -37,13 +37,18 @@ export function criarCriarAgendamento(ctx: Pick<ContextoAgente, 'telefone' | 'id
       }
 
       const calendarId = calendarIdParaProfissional(id_profissional);
+      const emails = email_lead ? [email_lead] : [];
       const evento = await criarEvento({
         calendarId,
         inicio: evento_inicio,
         fim: dtFim.toISO()!,
         titulo,
-        descricao: `${descricao}\nTelefone: ${ctx.telefone}`,
+        descricao: `${descricao}\nTelefone: ${ctx.telefone}${email_lead ? `\nEmail: ${email_lead}` : ''}`,
+        emailsParticipantes: emails,
+        criarLinkMeet: true,
       });
+
+      const linkMeet = evento.conferenceData?.entryPoints?.find((e) => e.entryPointType === 'video')?.uri ?? null;
 
       // Atualiza atributo do contato com data da última consulta
       try {
@@ -54,8 +59,8 @@ export function criarCriarAgendamento(ctx: Pick<ContextoAgente, 'telefone' | 'id
         log.warn({ err }, 'falha ao atualizar data_ultima_consulta — ignorando');
       }
 
-      log.debug({ id: evento.id }, 'criarAgendamento ok');
-      return JSON.stringify({ resultado: 'AGENDAMENTO CRIADO', id_evento: evento.id, evento });
+      log.debug({ id: evento.id, linkMeet }, 'criarAgendamento ok');
+      return JSON.stringify({ resultado: 'AGENDAMENTO CRIADO', id_evento: evento.id, link_meet: linkMeet, evento });
     },
     {
       name: 'Criar_agendamento',
@@ -70,6 +75,7 @@ Sempre verifique se já não chamou essa ferramenta antes de chamá-la.
         titulo: z.string(),
         descricao: z.string(),
         id_profissional: z.string(),
+        email_lead: z.string().email().optional().describe('Email do lead (se informado). O lead receberá o convite do Google Calendar e o link do Google Meet automaticamente.'),
       }),
     },
   );

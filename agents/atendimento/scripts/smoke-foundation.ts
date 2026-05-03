@@ -72,9 +72,10 @@ try {
 // 5) google-auth
 try {
   const auth = getGoogleAuth(SCOPES_CALENDAR);
-  const cliente = await auth.getClient();
-  // Tentar buscar token (testa que a service account é válida)
-  const tokenResp = await cliente.getAccessToken();
+  // OAuth2Client tem getAccessToken direto; GoogleAuth precisa de getClient primeiro
+  const tokenResp = 'getClient' in auth
+    ? await (await auth.getClient()).getAccessToken()
+    : await auth.getAccessToken();
   if (!tokenResp.token) throw new Error('token vazio');
   ok('google-auth', { tokenLen: tokenResp.token.length });
 } catch (err) {

@@ -246,6 +246,26 @@ export async function listarEtiquetas(idConta: number, idConversa: number): Prom
   return r.payload ?? [];
 }
 
+// ----- Contato -----
+
+export async function atualizarContato(
+  idConta: number,
+  idContato: number,
+  campos: { nome?: string; email?: string; atributosCustom?: Record<string, unknown> },
+): Promise<void> {
+  const corpo: Record<string, unknown> = {};
+  if (campos.nome) corpo.name = campos.nome;
+  if (campos.email) corpo.email = campos.email;
+  if (campos.atributosCustom && Object.keys(campos.atributosCustom).length > 0) {
+    corpo.custom_attributes = campos.atributosCustom;
+  }
+  if (Object.keys(corpo).length === 0) return;
+  await chamar(`/api/v1/accounts/${idConta}/contacts/${idContato}`, {
+    metodo: 'PATCH',
+    corpo,
+  });
+}
+
 // ----- Atributos customizados -----
 
 export async function definirAtributosContato(

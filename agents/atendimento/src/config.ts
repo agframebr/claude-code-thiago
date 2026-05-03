@@ -40,6 +40,10 @@ const esquema = z.object({
   // Google
   GOOGLE_SERVICE_ACCOUNT_KEY_PATH: z.string().min(1),
   CALENDAR_ID_THIAGO_FIGUEREDO: z.string().min(1),
+  // OAuth2 user auth (opcional — habilita Meet links e convites por email)
+  GOOGLE_OAUTH2_CLIENT_ID: z.string().optional(),
+  GOOGLE_OAUTH2_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_OAUTH2_REFRESH_TOKEN: z.string().optional(),
 
   // Langfuse (opcional — handler é no-op se ausente)
   LANGFUSE_SECRET_KEY: z.string().optional(),

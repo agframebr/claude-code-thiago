@@ -52,20 +52,50 @@ export interface OpcoesCriarEvento {
   fim: string;
   titulo: string;
   descricao?: string;
+  emailsParticipantes?: string[];
+  criarLinkMeet?: boolean;
 }
 
 export async function criarEvento(opts: OpcoesCriarEvento): Promise<calendar_v3.Schema$Event> {
-  const r = await cliente().events.insert({
-    calendarId: opts.calendarId,
-    requestBody: {
-      summary: opts.titulo,
-      description: opts.descricao,
-      start: { dateTime: opts.inicio, timeZone: TZ },
-      end: { dateTime: opts.fim, timeZone: TZ },
-    },
-  });
-  log.debug({ id: r.data.id }, 'criarEvento ok');
-  return r.data;
+  const requestBody: calendar_v3.Schema$Event = {
+    summary: opts.titulo,
+    description: opts.descricao,
+    start: { dateTime: opts.inicio, timeZone: TZ },
+    end: { dateTime: opts.fim, timeZone: TZ },
+  };
+
+  if (opts.emailsParticipantes?.length) {
+    requestBody.attendees = opts.emailsParticipantes.map((email) => ({ email }));
+  }
+
+  if (opts.criarLinkMeet) {
+    requestBody.conferenceData = {
+      createRequest: { requestId: crypto.randomUUID() },
+    };
+  }
+
+  try {
+    const r = await cliente().events.insert({
+      calendarId: opts.calendarId,
+      conferenceDataVersion: opts.criarLinkMeet ? 1 : undefined,
+      sendUpdates: opts.emailsParticipantes?.length ? 'all' : undefined,
+      requestBody,
+    });
+    log.debug({ id: r.data.id }, 'criarEvento ok');
+    return r.data;
+  } catch (err: unknown) {
+    // Service Account sem DWD não suporta attendees/Meet — retry sem eles
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('attendees') || msg.includes('Domain-Wide') || msg.includes('conference')) {
+      log.warn({ motivo: msg.slice(0, 120) }, 'criarEvento sem attendees/meet (service account sem DWD)');
+      delete requestBody.attendees;
+      delete requestBody.conferenceData;
+      const r2 = await cliente().events.insert({ calendarId: opts.calendarId, requestBody });
+      log.debug({ id: r2.data.id }, 'criarEvento ok (fallback sem attendees)');
+      return r2.data;
+    }
+    throw err;
+  }
 }
 
 export interface OpcoesAtualizarEvento {

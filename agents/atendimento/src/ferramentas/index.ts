@@ -9,6 +9,7 @@ import { criarRefletir } from './refletir.ts';
 import { criarReagirMensagem } from './reagirMensagem.ts';
 import { criarAtualizarTarefa } from './atualizarTarefa.ts';
 import { criarNotificarThiago } from './notificarThiago.ts';
+import { criarAtualizarContato } from './atualizarContato.ts';
 
 export function criarFerramentas(ctx: ContextoAgente) {
   return [
@@ -22,6 +23,7 @@ export function criarFerramentas(ctx: ContextoAgente) {
     criarReagirMensagem(ctx),
     criarAtualizarTarefa(ctx),
     criarNotificarThiago(),
+    criarAtualizarContato(ctx),
   ];
 }
 
