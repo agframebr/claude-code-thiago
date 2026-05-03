@@ -36,8 +36,11 @@ function deserializar(raw: unknown): BaseMessage | null {
     case 'HumanMessage':
       return new HumanMessage({ content, additional_kwargs: additional });
     case 'ai':
-    case 'AIMessage':
-      return new AIMessage({ content, additional_kwargs: additional });
+    case 'AIMessage': {
+      // Remove tool_calls do additional_kwargs para evitar 400 "tool must follow tool_call"
+      const { tool_calls: _tc, function_call: _fc, ...additionalLimpo } = additional as Record<string, unknown>;
+      return new AIMessage({ content, additional_kwargs: additionalLimpo });
+    }
     case 'system':
     case 'SystemMessage':
       return new SystemMessage({ content, additional_kwargs: additional });
@@ -75,7 +78,9 @@ export async function carregarHistorico(telefone: string, limite = 50): Promise<
     `SELECT message FROM n8n_historico_mensagens WHERE session_id = $1 ORDER BY id ASC LIMIT $2`,
     [telefone, limite],
   );
-  return r.rows.map((row) => deserializar(row.message)).filter((m): m is BaseMessage => m !== null);
+  return r.rows
+    .map((row) => deserializar(row.message))
+    .filter((m): m is BaseMessage => m !== null && !(m instanceof ToolMessage));
 }
 
 export async function salvarMensagem(telefone: string, mensagem: BaseMessage): Promise<void> {

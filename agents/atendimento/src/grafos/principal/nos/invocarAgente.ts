@@ -128,7 +128,7 @@ export async function invocarAgente(
             : JSON.stringify(ultimaRetry.content)
           : '';
       } catch (retryErr) {
-        log.error({ retryErr }, 'erro no retry após limpar checkpointer');
+        log.error({ err: retryErr }, 'erro no retry após limpar checkpointer');
         outputAgente = '';
       }
     } else {
