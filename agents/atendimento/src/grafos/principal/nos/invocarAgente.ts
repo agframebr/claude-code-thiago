@@ -15,11 +15,23 @@ import { createLangfuseHandler, flushLangfuseHandler } from '../../../lib/langfu
 import { criarFerramentas } from '../../../ferramentas/index.ts';
 import { buildPromptIsys } from '../prompts/isys-system.ts';
 import { createChildLogger } from '../../../lib/logger.ts';
+import { consultar } from '../../../lib/db.ts';
 import type { ContextoAgente } from '../../../tipos.ts';
 
 const log = createChildLogger({ no: 'invocar_agente' });
 
 const OUTPUT_INVALIDO = 'Agent stopped due to max iterations.';
+
+async function limparCheckpointer(threadId: string): Promise<void> {
+  try {
+    await consultar('DELETE FROM checkpoint_blobs WHERE thread_id = $1', [threadId]);
+    await consultar('DELETE FROM checkpoint_writes WHERE thread_id = $1', [threadId]);
+    await consultar('DELETE FROM checkpoints WHERE thread_id = $1', [threadId]);
+    log.info({ threadId }, 'checkpointer limpo');
+  } catch (err) {
+    log.warn({ err }, 'falha ao limpar checkpointer');
+  }
+}
 
 export async function invocarAgente(
   estado: EstadoPrincipalType,
@@ -98,8 +110,31 @@ export async function invocarAgente(
         : JSON.stringify(ultima.content)
       : '';
   } catch (err) {
-    log.error({ err }, 'erro invocando agente maria');
-    outputAgente = '';
+    const errMsg = err instanceof Error ? err.message : String(err);
+    const ehCorrupcaoToolMsg = errMsg.includes("role 'tool'") || errMsg.includes("role \"tool\"");
+    if (ehCorrupcaoToolMsg) {
+      log.warn({ err }, 'state corrompido (tool sem precedente) — limpando e retentando');
+      await limparCheckpointer(estado.telefone);
+      try {
+        const respRetry = await agente.invoke(
+          { messages: [...historico, inputMessage] },
+          { configurable: { thread_id: estado.telefone }, recursionLimit: 25 },
+        );
+        const msgsRetry = respRetry.messages ?? [];
+        const ultimaRetry = msgsRetry[msgsRetry.length - 1];
+        outputAgente = ultimaRetry
+          ? typeof ultimaRetry.content === 'string'
+            ? ultimaRetry.content
+            : JSON.stringify(ultimaRetry.content)
+          : '';
+      } catch (retryErr) {
+        log.error({ retryErr }, 'erro no retry após limpar checkpointer');
+        outputAgente = '';
+      }
+    } else {
+      log.error({ err }, 'erro invocando agente maria');
+      outputAgente = '';
+    }
   } finally {
     await flushLangfuseHandler(handler);
   }
