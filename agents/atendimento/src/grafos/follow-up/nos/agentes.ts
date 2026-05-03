@@ -9,7 +9,6 @@ import { SystemMessage, HumanMessage } from '@langchain/core/messages';
 import type { EstadoFollowUpType } from '../estado.ts';
 import { llmPrincipal } from '../../../lib/openai.ts';
 import { carregarHistorico } from '../../../lib/memoria-chat.ts';
-import { getCheckpointer } from '../../../lib/checkpointer.ts';
 import { createLangfuseHandler, flushLangfuseHandler } from '../../../lib/langfuse.ts';
 import { criarAtualizarTarefa } from '../../../ferramentas/atualizarTarefa.ts';
 import { PROMPT_LEMBRETE_AGENDAMENTO } from '../prompts/lembrete-agendamento.ts';
@@ -65,11 +64,9 @@ export async function agenteFollowUpQualificadoNoshow(
     funil: { id: estado.id_funil, steps: estado.etapas_funil },
   });
 
-  const checkpointer = await getCheckpointer();
   const agente = createReactAgent({
     llm: llmPrincipal(),
     tools: [tool],
-    checkpointSaver: checkpointer,
     stateModifier: buildPromptFollowUp({
       etapasFunil: estado.etapas_funil,
       idEtapaAtual: estado.id_etapa_atual,
@@ -90,7 +87,6 @@ export async function agenteFollowUpQualificadoNoshow(
     const resp = await agente.invoke(
       { messages: [...historico, new HumanMessage(input)] },
       {
-        configurable: { thread_id: `followup-${estado.telefone}` },
         callbacks: handler ? [handler] : undefined,
       },
     );

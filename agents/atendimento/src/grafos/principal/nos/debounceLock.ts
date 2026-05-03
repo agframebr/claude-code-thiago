@@ -73,11 +73,23 @@ export async function verificarMensagemEncavalada(
 export async function verificarLock(
   estado: EstadoPrincipalType,
 ): Promise<Partial<EstadoPrincipalType>> {
-  const r = await consultar<{ lock_conversa: boolean }>(
-    `SELECT lock_conversa FROM n8n_status_atendimento WHERE session_id = $1`,
+  const r = await consultar<{ lock_conversa: boolean; updated_at: Date }>(
+    `SELECT lock_conversa, updated_at FROM n8n_status_atendimento WHERE session_id = $1`,
     [estado.telefone],
   );
   if (r.rows.length && r.rows[0]!.lock_conversa === true) {
+    const idadeMs = r.rows[0]!.updated_at
+      ? Date.now() - new Date(r.rows[0]!.updated_at).getTime()
+      : Infinity;
+    if (idadeMs > 5 * 60 * 1000) {
+      // Lock preso há mais de 5 min (restart/crash) — libera automaticamente
+      await consultar(
+        `UPDATE n8n_status_atendimento SET lock_conversa=false, updated_at=NOW() WHERE session_id=$1`,
+        [estado.telefone],
+      );
+      log.warn({ idadeMs }, 'lock expirado — liberado automaticamente');
+      return { acao: 'processar' };
+    }
     log.debug('lock ativo — outra invocação está respondendo');
     return { acao: 'ignorar' };
   }

@@ -24,15 +24,15 @@ function roteadorEvento(estado: EstadoFollowUpType): string {
 
 function verificarCompareceuOuNoshow(estado: EstadoFollowUpType): string {
   const nomeAtual = estado.etapa_atual_para_renovacao ?? '';
-  if (['Compareceu', 'No-show'].includes(nomeAtual)) return 'atualizar_data_tarefa';
+  if (['Diagnóstico Feito', 'No-show'].includes(nomeAtual)) return 'atualizar_data_tarefa';
   return END;
 }
 
 function classificarTipoFollowUp(estado: EstadoFollowUpType): string {
   const nome = estado.nome_etapa_atual;
   if (['Qualificado', 'No-show'].includes(nome)) return 'agente_qualificado_noshow';
-  if (nome === 'Agendado') return 'agente_lembrete';
-  if (nome === 'Compareceu') return 'agente_pos_consulta';
+  if (nome === 'Diagnóstico Agendado') return 'agente_lembrete';
+  if (nome === 'Diagnóstico Feito') return 'agente_pos_consulta';
   return END;
 }
 
@@ -53,8 +53,8 @@ async function buildGrafo() {
       const nome = e.nome_etapa_atual;
       let tipo: EstadoFollowUpType['tipo_follow_up'] = 'ignorar';
       if (['Qualificado', 'No-show'].includes(nome)) tipo = 'qualificado_noshow';
-      else if (nome === 'Agendado') tipo = 'lembrete_agendamento';
-      else if (nome === 'Compareceu') tipo = 'pos_consulta';
+      else if (nome === 'Diagnóstico Agendado') tipo = 'lembrete_agendamento';
+      else if (nome === 'Diagnóstico Feito') tipo = 'pos_consulta';
       return { tipo_follow_up: tipo };
     })
     .addNode('agente_lembrete', agenteLembreteAgendamento)

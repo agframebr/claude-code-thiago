@@ -10,7 +10,6 @@ import { HumanMessage, AIMessage } from '@langchain/core/messages';
 import type { EstadoPrincipalType } from '../estado.ts';
 import { llmPrincipal } from '../../../lib/openai.ts';
 import { carregarHistorico, salvarMensagem, salvarToolCallsXml } from '../../../lib/memoria-chat.ts';
-import { getCheckpointer } from '../../../lib/checkpointer.ts';
 import { createLangfuseHandler, flushLangfuseHandler } from '../../../lib/langfuse.ts';
 import { criarFerramentas } from '../../../ferramentas/index.ts';
 import { buildPromptIsys } from '../prompts/isys-system.ts';
@@ -53,13 +52,11 @@ export async function invocarAgente(
   };
 
   const tools = criarFerramentas(ctx);
-  const checkpointer = await getCheckpointer();
   const promptSistema = buildPromptIsys({ tarefa: estado.tarefa, funil: estado.funil, telefone: estado.telefone });
 
   const agente = createReactAgent({
     llm: llmPrincipal(),
     tools,
-    checkpointSaver: checkpointer,
     stateModifier: promptSistema,
   });
 
@@ -79,7 +76,6 @@ export async function invocarAgente(
     const resp = await agente.invoke(
       { messages: [...historico, inputMessage] },
       {
-        configurable: { thread_id: estado.telefone },
         callbacks: handler ? [handler] : undefined,
         recursionLimit: 25,
       },
@@ -118,7 +114,7 @@ export async function invocarAgente(
       try {
         const respRetry = await agente.invoke(
           { messages: [...historico, inputMessage] },
-          { configurable: { thread_id: estado.telefone }, recursionLimit: 25 },
+          { recursionLimit: 25 },
         );
         const msgsRetry = respRetry.messages ?? [];
         const ultimaRetry = msgsRetry[msgsRetry.length - 1];
