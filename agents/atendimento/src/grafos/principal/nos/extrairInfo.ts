@@ -4,6 +4,7 @@
  */
 import type { EstadoPrincipalType } from '../estado.ts';
 import { createChildLogger } from '../../../lib/logger.ts';
+import { config } from '../../../config.ts';
 
 const log = createChildLogger({ no: 'extrair_info' });
 
@@ -28,9 +29,9 @@ export async function extrairInfo(
   const out: Partial<EstadoPrincipalType> = {
     id_mensagem: String(p.id ?? ''),
     id_mensagem_referenciada: contentAttrs.in_reply_to ? String(contentAttrs.in_reply_to) : null,
-    id_conta: Number((p.account as Record<string, unknown>)?.id ?? 0),
+    id_conta: Number((p.account as Record<string, unknown>)?.id ?? conversa.account_id ?? 0) || config.CHATWOOT_ACCOUNT_ID,
     id_conversa: Number(conversa.id ?? 0),
-    id_contato: Number((conversa.contact_inbox as Record<string, unknown>)?.contact_id ?? 0),
+    id_contato: Number((conversa.contact_inbox as Record<string, unknown>)?.contact_id ?? sender.id ?? 0),
     id_inbox: Number(inboxRaw.id ?? conversa.inbox_id ?? 0),
     telefone: String(sender.phone_number ?? social.instagram ?? sender.identifier ?? ''),
     nome: String(sender.name ?? ''),

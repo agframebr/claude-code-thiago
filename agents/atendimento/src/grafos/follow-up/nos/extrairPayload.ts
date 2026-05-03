@@ -1,5 +1,6 @@
 import type { EstadoFollowUpType } from '../estado.ts';
 import { createChildLogger } from '../../../lib/logger.ts';
+import { config } from '../../../config.ts';
 
 const log = createChildLogger({ no: 'extrair_payload_follow_up' });
 
@@ -15,7 +16,7 @@ export async function extrairPayloadFollowUp(
 
   const id_tarefa = Number(tarefa.id ?? 0);
   const id_funil = Number(board.id ?? 0);
-  const id_conta = Number((p.account as Record<string, unknown>)?.id ?? 0);
+  const id_conta = Number((p.account as Record<string, unknown>)?.id ?? 0) || config.CHATWOOT_ACCOUNT_ID;
   const id_etapa_atual = String(boardStep.id ?? '');
   const nome_etapa_atual = String(boardStep.name ?? '');
   const titulo_tarefa = String(tarefa.title ?? '');
