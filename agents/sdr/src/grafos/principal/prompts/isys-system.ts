@@ -1,6 +1,6 @@
 import type { TarefaKanban, FunilKanban } from '../../../tipos.ts';
 import { agora } from '../../../lib/datas.ts';
-import { TELEFONE_THIAGO, TELEFONE_LETICIA } from '../../../dominio/vetrik.ts';
+import { ehGestor } from '../../../dominio/vetrik.ts';
 
 export interface OpcoesPromptIsys {
   tarefa: TarefaKanban | null;
@@ -9,7 +9,6 @@ export interface OpcoesPromptIsys {
 }
 
 export function buildPromptIsys(opts: OpcoesPromptIsys): string {
-  const modoAssistente = opts.telefone === TELEFONE_THIAGO;
   const tarefa = opts.tarefa;
   const etapas = opts.funil?.steps ?? tarefa?.board?.steps ?? [];
   const etapasDesc = etapas.map((s) => `${s.name}: ${s.id}`).join(', ');
@@ -20,10 +19,11 @@ export function buildPromptIsys(opts: OpcoesPromptIsys): string {
   const dueDate = tarefa?.due_date || '(não definida)';
   const dataHora = agora().toFormat("EEEE, d 'de' LLLL 'de' yyyy, HH:mm ZZZZ", { locale: 'pt-BR' });
 
-  if (opts.telefone === TELEFONE_THIAGO) {
+  const { perfil: perfilGestor } = ehGestor(opts.telefone);
+  if (perfilGestor === 'thiago') {
     return buildPromptAssistente({ etapasDesc, nomeEtapa, idEtapa, titulo, descricao, dueDate, dataHora });
   }
-  if (opts.telefone === TELEFONE_LETICIA) {
+  if (perfilGestor === 'leticia') {
     return buildPromptGestora({ etapasDesc, nomeEtapa, idEtapa, titulo, descricao, dueDate, dataHora });
   }
   return buildPromptSDR({ etapasDesc, nomeEtapa, idEtapa, titulo, descricao, dueDate, dataHora });

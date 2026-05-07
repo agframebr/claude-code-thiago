@@ -51,10 +51,12 @@ export async function invocarAgente(
     mensagensColetadas: estado.mensagens_coletadas ?? '',
   };
 
-  const { TELEFONE_THIAGO, TELEFONE_LETICIA } = await import('../../../dominio/vetrik.ts');
+  const { ehGestor } = await import('../../../dominio/vetrik.ts');
+  const { perfil: perfilGestor } = ehGestor(estado.telefone);
   let perfil: PerfilAgente = 'sdr';
-  if (estado.telefone === TELEFONE_THIAGO) perfil = 'assistente';
-  else if (estado.telefone === TELEFONE_LETICIA) perfil = 'gestora';
+  if (perfilGestor === 'thiago') perfil = 'assistente';
+  else if (perfilGestor === 'leticia') perfil = 'gestora';
+  log.info({ telefone: estado.telefone, perfil }, 'perfil determinado');
 
   const tools = criarFerramentas(ctx, perfil);
   const promptSistema = buildPromptIsys({ tarefa: estado.tarefa, funil: estado.funil, telefone: estado.telefone });

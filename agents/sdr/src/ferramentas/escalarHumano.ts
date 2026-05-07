@@ -2,6 +2,7 @@ import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { adicionarEtiquetas, enviarMensagem, buscarConversaPorTelefone } from '../lib/chatwoot.ts';
 import { config } from '../config.ts';
+import { ehGestor } from '../dominio/vetrik.ts';
 import { createChildLogger } from '../lib/logger.ts';
 import type { ContextoAgente } from '../tipos.ts';
 
@@ -13,8 +14,8 @@ export function criarEscalarHumano(ctx: Pick<ContextoAgente, 'nome' | 'telefone'
       log.debug({ telefone: ctx.telefone, destino }, 'escalarHumano chamado');
 
       // GUARD: nunca escalar/desabilitar gestores (Thiago/Leticia) — eles SÃO os humanos
-      const ehGestor = ctx.telefone === config.TELEFONE_THIAGO || ctx.telefone === config.TELEFONE_LETICIA;
-      if (ehGestor) {
+      const { isGestor } = ehGestor(ctx.telefone);
+      if (isGestor) {
         log.warn({ telefone: ctx.telefone }, 'tentativa de escalar gestor BLOQUEADA — gestores nunca são escalados');
         return JSON.stringify({
           erro: 'Você está falando com um gestor da operação. Gestores nunca devem ser escalados nem ter o agente desativado. Continue a conversa normalmente, com acesso completo às informações solicitadas.',

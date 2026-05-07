@@ -56,3 +56,29 @@ export const TELEFONE_THIAGO = '+5562998311402';
 export const TELEFONE_LETICIA = '+5562999358918';
 
 export const KANBAN_BOARD_ID = 2;
+
+/**
+ * Normaliza número de telefone BR para formato canônico (com o 9 de mobile).
+ * WhatsApp/Chatwoot às vezes manda no formato antigo (sem o 9 após o DDD).
+ *
+ * Exemplo: "+556298311402" → "+5562998311402"
+ *          "+5562999358918" → "+5562999358918" (já canônico)
+ */
+export function normalizarTelefoneBR(telefone: string): string {
+  if (!telefone) return telefone;
+  const digits = telefone.replace(/\D/g, '');
+  // Formato antigo BR mobile: 55 + DDD(2) + 8 dígitos = 12 dígitos → falta o 9
+  if (digits.startsWith('55') && digits.length === 12) {
+    return '+' + digits.slice(0, 4) + '9' + digits.slice(4);
+  }
+  // Já tem 13 ou outro formato
+  return digits.startsWith('55') ? '+' + digits : telefone.startsWith('+') ? telefone : '+' + digits;
+}
+
+/** Verifica se o telefone (em qualquer formato BR) é de um gestor da Vetrik. */
+export function ehGestor(telefone: string): { isGestor: boolean; perfil: 'thiago' | 'leticia' | null } {
+  const norm = normalizarTelefoneBR(telefone);
+  if (norm === TELEFONE_THIAGO) return { isGestor: true, perfil: 'thiago' };
+  if (norm === TELEFONE_LETICIA) return { isGestor: true, perfil: 'leticia' };
+  return { isGestor: false, perfil: null };
+}

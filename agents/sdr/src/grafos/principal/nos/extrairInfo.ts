@@ -6,7 +6,7 @@ import type { EstadoPrincipalType } from '../estado.ts';
 import { createChildLogger } from '../../../lib/logger.ts';
 import { config } from '../../../config.ts';
 import { buscarTarefaDaConversa, criarTarefaKanban, buscarTarefa } from '../../../lib/chatwoot.ts';
-import { ETAPAS_FUNIL, TELEFONE_THIAGO, TELEFONE_LETICIA } from '../../../dominio/vetrik.ts';
+import { ETAPAS_FUNIL, normalizarTelefoneBR, ehGestor as ehGestorVetrik } from '../../../dominio/vetrik.ts';
 
 const log = createChildLogger({ no: 'extrair_info' });
 
@@ -36,9 +36,10 @@ export async function extrairInfo(
 
   // Auto-cria card Kanban para lead sem tarefa (não gestores)
   const nomeContato = String((sender as Record<string, unknown>).name ?? '');
-  const telefoneContato = String((sender as Record<string, unknown>).phone_number ?? (social as Record<string, string>).instagram ?? (sender as Record<string, unknown>).identifier ?? '');
-  const ehGestor = telefoneContato === TELEFONE_THIAGO || telefoneContato === TELEFONE_LETICIA;
-  if (!tarefa && idConversaNum && !ehGestor) {
+  const telefoneRaw = String((sender as Record<string, unknown>).phone_number ?? (social as Record<string, string>).instagram ?? (sender as Record<string, unknown>).identifier ?? '');
+  const telefoneContato = normalizarTelefoneBR(telefoneRaw);
+  const { isGestor } = ehGestorVetrik(telefoneRaw);
+  if (!tarefa && idConversaNum && !isGestor) {
     try {
       const titulo = nomeContato || telefoneContato || `Lead #${idConversaNum}`;
       // Novo lead que entrou em contato → começa em "Contato Feito"
@@ -66,7 +67,7 @@ export async function extrairInfo(
     id_conversa: Number(conversa.id ?? 0),
     id_contato: Number((conversa.contact_inbox as Record<string, unknown>)?.contact_id ?? sender.id ?? 0),
     id_inbox: Number(inboxRaw.id ?? conversa.inbox_id ?? 0),
-    telefone: String(sender.phone_number ?? social.instagram ?? sender.identifier ?? ''),
+    telefone: telefoneContato,
     nome: String(sender.name ?? ''),
     mensagem_bruta: String(p.content ?? ''),
     mensagem_de_audio: a0.file_type === 'audio',
