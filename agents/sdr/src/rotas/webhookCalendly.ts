@@ -31,14 +31,24 @@ function validarAssinatura(rawBody: string, headerAssinatura: string): boolean {
 async function processarBookingCriado(payload: PayloadCalendly['payload']) {
   const email = payload.email;
   const nome = payload.name;
-  const horarioISO = payload.event.start_time;
+
+  // Calendly v2: dados do evento em scheduled_event. Fallback pra event (caso seja objeto).
+  const eventoObj = payload.scheduled_event
+    ?? (typeof payload.event === 'object' ? payload.event : undefined);
+
+  const horarioISO = eventoObj?.start_time ?? '';
+  if (!horarioISO) {
+    log.error({ email, payloadKeys: Object.keys(payload) }, 'webhook Calendly sem start_time — payload inesperado');
+    return;
+  }
+
   const horarioTZ = DateTime.fromISO(horarioISO).setZone('America/Sao_Paulo');
   const horarioFormatado = horarioTZ.toFormat("EEEE, d 'de' LLLL 'às' HH:mm", { locale: 'pt-BR' });
 
   // Link Meet que o Calendly já criou no Google Calendar
-  const linkMeet = payload.event.location?.join_url ?? null;
+  const linkMeet = eventoObj?.location?.join_url ?? null;
 
-  log.info({ email, horario: horarioISO, linkMeet }, 'booking Calendly recebido');
+  log.info({ email, horario: horarioISO, linkMeet, locationType: eventoObj?.location?.type }, 'booking Calendly recebido');
 
   // Busca contato no Chatwoot pelo email
   const contato = await buscarContatoPorEmail(config.CHATWOOT_ACCOUNT_ID, email).catch(() => null);
@@ -137,7 +147,9 @@ export function rotaWebhookCalendly(app: Elysia) {
       set.status = 400;
       return { erro: 'body inválido' };
     }
-    log.info({ event: payload.event }, 'webhook Calendly recebido');
+    log.info({ event: payload.event, payloadKeys: Object.keys(payload.payload ?? {}) }, 'webhook Calendly recebido');
+    // Log debug do payload completo pra inspecionar estrutura (truncado)
+    log.debug({ raw: rawBody.slice(0, 2000) }, 'webhook Calendly raw');
 
     set.status = 200;
     if (payload.event === 'invitee.created') {

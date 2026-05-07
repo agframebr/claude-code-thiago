@@ -5,6 +5,7 @@ import { rotaSaude } from './rotas/saude.ts';
 import { rotaWebhookChatwoot } from './rotas/webhookChatwoot.ts';
 import { rotaWebhookCalendly } from './rotas/webhookCalendly.ts';
 import { rotaOAuth2Google } from './rotas/oauth2Google.ts';
+import { rotaAdmin } from './rotas/admin.ts';
 
 export function criarServidor() {
   const app = new Elysia()
@@ -12,6 +13,7 @@ export function criarServidor() {
     .use(rotaWebhookChatwoot)
     .use(rotaWebhookCalendly)
     .use(rotaOAuth2Google)
+    .use(rotaAdmin)
     .onError(({ error, code, request, path }) => {
       logger.error({ err: error, code, method: request.method, path, url: request.url }, 'erro não tratado no servidor');
       return { erro: 'Erro interno', code };

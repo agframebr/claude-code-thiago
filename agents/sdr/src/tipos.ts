@@ -123,11 +123,23 @@ export interface PayloadCalendly {
   payload: {
     email: string;
     name: string;
-    event: {
+    // Em Calendly v2, payload.event é uma URI string; os detalhes ficam em scheduled_event
+    event?: string | {
+      start_time?: string;
+      end_time?: string;
+      name?: string;
+      uri?: string;
+      location?: {
+        type?: string;
+        join_url?: string;
+        location?: string;
+      };
+    };
+    scheduled_event?: {
       start_time: string;
       end_time: string;
-      name: string;
-      uri: string;
+      name?: string;
+      uri?: string;
       location?: {
         type?: string;
         join_url?: string;
