@@ -37,12 +37,17 @@ export async function extrairPayloadFollowUp(
   telefone = String(sender.phone_number ?? sender.identifier ?? '');
   nome_contato = String(sender.name ?? '');
 
-  // changed_attributes para kanban_task_updated
+  // changed_attributes para kanban_task_updated — pode vir como array ou objeto
   let etapa_anterior: string | null = null;
   let etapa_atual_para_renovacao: string | null = null;
   if (evento === 'kanban_task_updated') {
-    const changed = (p.changed_attributes as Record<string, unknown>[]) ?? [];
-    const boardStepChange = changed.find((c) => 'board_step' in c) as Record<string, unknown> | undefined;
+    const raw = p.changed_attributes;
+    const changedArr: Record<string, unknown>[] = Array.isArray(raw)
+      ? (raw as Record<string, unknown>[])
+      : raw && typeof raw === 'object'
+      ? Object.entries(raw as Record<string, unknown>).map(([k, v]) => ({ [k]: v }))
+      : [];
+    const boardStepChange = changedArr.find((c) => 'board_step' in c) as Record<string, unknown> | undefined;
     if (boardStepChange) {
       const bs = boardStepChange.board_step as Record<string, unknown>;
       etapa_anterior = String((bs.previous_value as Record<string, unknown>)?.name ?? '');

@@ -4,8 +4,8 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
-    ports:
-      - "3001:3000"
+    expose:
+      - "3000"
     networks:
       - coolify
     healthcheck:

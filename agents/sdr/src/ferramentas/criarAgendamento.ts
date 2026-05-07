@@ -3,14 +3,17 @@ import { z } from 'zod';
 import { criarEvento } from '../lib/google-calendar.ts';
 import { parseISO } from '../lib/datas.ts';
 import { calendarIdParaProfissional } from '../dominio/id-agendas.ts';
-import { definirAtributosContato } from '../lib/chatwoot.ts';
+import { definirAtributosContato, atualizarTarefa } from '../lib/chatwoot.ts';
 import { createChildLogger } from '../lib/logger.ts';
 import { criarBuscarJanelasDisponiveis } from './buscarJanelasDisponiveis.ts';
+import { config } from '../config.ts';
+import { ETAPAS_FUNIL } from '../dominio/vetrik.ts';
+import { DateTime } from 'luxon';
 import type { ContextoAgente } from '../tipos.ts';
 
 const log = createChildLogger({ modulo: 'tool.criarAgendamento' });
 
-export function criarCriarAgendamento(ctx: Pick<ContextoAgente, 'telefone' | 'idConta' | 'idContato'>) {
+export function criarCriarAgendamento(ctx: Pick<ContextoAgente, 'telefone' | 'idConta' | 'idContato' | 'tarefa'>) {
   const buscarJanelas = criarBuscarJanelasDisponiveis();
 
   return tool(
@@ -59,8 +62,33 @@ export function criarCriarAgendamento(ctx: Pick<ContextoAgente, 'telefone' | 'id
         log.warn({ err }, 'falha ao atualizar data_ultima_consulta — ignorando');
       }
 
+      // Move card do Kanban para "Reunião Agendada" automaticamente
+      const idTarefa = ctx.tarefa?.id;
+      if (idTarefa) {
+        try {
+          const horarioFormatado = DateTime.fromISO(evento_inicio).setZone('America/Sao_Paulo').toFormat("EEEE, d 'de' LLLL 'às' HH:mm", { locale: 'pt-BR' });
+          const linhasDescricao = [
+            `📅 Sessão Estratégica agendada`,
+            `Data: ${horarioFormatado}`,
+            `Telefone: ${ctx.telefone}`,
+          ];
+          if (email_lead) linhasDescricao.push(`Email: ${email_lead}`);
+          if (linkMeet) linhasDescricao.push(`Meet: ${linkMeet}`);
+          if (descricao) linhasDescricao.push('', descricao);
+
+          await atualizarTarefa(ctx.idConta, config.KANBAN_BOARD_ID, idTarefa, {
+            board_step_id: ETAPAS_FUNIL.reuniaoAgendada.id,
+            description: linhasDescricao.join('\n'),
+            due_date: dtInicio.minus({ days: 1 }).toISO() ?? undefined,
+          });
+          log.info({ idTarefa }, 'card movido para Reunião Agendada automaticamente');
+        } catch (err) {
+          log.warn({ err, idTarefa }, 'falha ao mover card no Kanban — agente pode tentar manualmente');
+        }
+      }
+
       log.debug({ id: evento.id, linkMeet }, 'criarAgendamento ok');
-      return JSON.stringify({ resultado: 'AGENDAMENTO CRIADO', id_evento: evento.id, link_meet: linkMeet, evento });
+      return JSON.stringify({ resultado: 'AGENDAMENTO CRIADO', id_evento: evento.id, link_meet: linkMeet, kanban_movido: !!idTarefa });
     },
     {
       name: 'Criar_agendamento',
