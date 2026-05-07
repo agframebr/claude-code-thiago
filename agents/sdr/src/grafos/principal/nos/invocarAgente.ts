@@ -36,6 +36,22 @@ export async function invocarAgente(
   estado: EstadoPrincipalType,
 ): Promise<Partial<EstadoPrincipalType>> {
   const inicio = Date.now();
+
+  // Bypass do agente: se for /poscall do Thiago, processa direto sem rodar o ReAct
+  try {
+    const { tentarInterceptarPosCall } = await import('../../../lib/posCallInteligente.ts');
+    const intercepted = await tentarInterceptarPosCall(
+      estado.telefone,
+      estado.mensagens_coletadas ?? '',
+    );
+    if (intercepted) {
+      log.info({ telefone: estado.telefone }, '/poscall interceptado e processado');
+      return { output_agente: '' }; // já respondeu direto, não precisa rodar fluxo de envio
+    }
+  } catch (err) {
+    log.warn({ err }, 'falha ao tentar interceptar /poscall — segue fluxo normal');
+  }
+
   const historico = await carregarHistorico(estado.telefone, 50);
 
   const ctx: ContextoAgente = {

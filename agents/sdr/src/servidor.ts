@@ -8,6 +8,7 @@ import { rotaOAuth2Google } from './rotas/oauth2Google.ts';
 import { rotaAdmin } from './rotas/admin.ts';
 import { rotaDashboard } from './rotas/dashboard.ts';
 import { iniciarBriefingScheduler } from './lib/briefingDiario.ts';
+import { iniciarPreBriefingScheduler } from './lib/preBriefingCall.ts';
 
 export function criarServidor() {
   const app = new Elysia()
@@ -36,6 +37,7 @@ export async function iniciarServidor() {
   });
 
   iniciarBriefingScheduler();
+  iniciarPreBriefingScheduler();
 
   return app;
 }
