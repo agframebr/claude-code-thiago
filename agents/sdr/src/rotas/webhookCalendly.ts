@@ -52,44 +52,51 @@ async function processarBookingCriado(payload: PayloadCalendly['payload']) {
 
   // Busca contato no Chatwoot pelo email
   const contato = await buscarContatoPorEmail(config.CHATWOOT_ACCOUNT_ID, email).catch(() => null);
-  if (!contato) {
-    log.warn({ email }, 'contato não encontrado no Chatwoot pelo email');
-    return;
-  }
-
   const idConta = config.CHATWOOT_ACCOUNT_ID;
-  const idConversa = contato.ultima_conversa_id;
-  const idTarefa = contato.tarefa_id;
+  const idConversa = contato?.ultima_conversa_id ?? null;
+  const idTarefa = contato?.tarefa_id ?? null;
 
-  if (!idConversa) {
-    log.warn({ email, idContato: contato.id }, 'contato sem conversa ativa');
-    return;
+  if (!contato) {
+    log.warn({ email, nome }, 'contato não encontrado no Chatwoot pelo email — notifica Thiago mesmo assim');
+  } else if (!idConversa) {
+    log.warn({ email, idContato: contato.id }, 'contato sem conversa ativa — notifica Thiago mesmo assim');
   }
 
-  // Confirmação para o lead
-  const linhasConfirmacao = [
-    `✅ Sessão Estratégica confirmada!`,
-    ``,
-    `📅 *${horarioFormatado}* (horário de Brasília)`,
-  ];
-  if (linkMeet) linhasConfirmacao.push(``, `🔗 *Link da reunião*: ${linkMeet}`);
-  linhasConfirmacao.push(``, `Um especialista da Vetrik vai entrar em contato com você no horário marcado. Qualquer dúvida antes disso, pode falar comigo aqui.`);
-
-  await enviarMensagem(idConta, idConversa, { content: linhasConfirmacao.join('\n') });
-
-  // Lembrete 1h antes
-  const horarioLembrete = horarioTZ.minus({ minutes: 60 });
-  if (horarioLembrete > DateTime.now()) {
-    const linhasLembrete = [
-      `⏰ Lembrete: sua Sessão Estratégica com a Vetrik começa em 1 hora!`,
+  // Confirmação para o lead (só se conversa existir)
+  if (idConversa) {
+    const linhasConfirmacao = [
+      `✅ Sessão Estratégica confirmada!`,
       ``,
-      `📅 ${horarioFormatado}`,
+      `📅 *${horarioFormatado}* (horário de Brasília)`,
     ];
-    if (linkMeet) linhasLembrete.push(`🔗 ${linkMeet}`);
-    linhasLembrete.push(``, `Até já! 🚀`);
+    if (linkMeet) linhasConfirmacao.push(``, `🔗 *Link da reunião*: ${linkMeet}`);
+    linhasConfirmacao.push(``, `Um especialista da Vetrik vai entrar em contato com você no horário marcado. Qualquer dúvida antes disso, pode falar comigo aqui.`);
 
-    await agendarMensagem(idConta, idConversa, linhasLembrete.join('\n'), horarioLembrete.toISO()!);
-    log.info({ scheduled_at: horarioLembrete.toISO() }, 'lembrete agendado');
+    try {
+      await enviarMensagem(idConta, idConversa, { content: linhasConfirmacao.join('\n') });
+      log.info({ idConversa, linkMeet: !!linkMeet }, 'confirmação enviada ao lead');
+    } catch (err) {
+      log.error({ err, idConversa }, 'falha ao enviar confirmação ao lead');
+    }
+
+    // Lembrete 1h antes
+    const horarioLembrete = horarioTZ.minus({ minutes: 60 });
+    if (horarioLembrete > DateTime.now()) {
+      const linhasLembrete = [
+        `⏰ Lembrete: sua Sessão Estratégica com a Vetrik começa em 1 hora!`,
+        ``,
+        `📅 ${horarioFormatado}`,
+      ];
+      if (linkMeet) linhasLembrete.push(`🔗 ${linkMeet}`);
+      linhasLembrete.push(``, `Até já! 🚀`);
+
+      try {
+        await agendarMensagem(idConta, idConversa, linhasLembrete.join('\n'), horarioLembrete.toISO()!);
+        log.info({ scheduled_at: horarioLembrete.toISO() }, 'lembrete 1h antes agendado');
+      } catch (err) {
+        log.error({ err }, 'falha ao agendar lembrete 1h antes');
+      }
+    }
   }
 
   // Move task para Reunião Agendada e salva dados do agendamento na descrição
@@ -100,33 +107,44 @@ async function processarBookingCriado(payload: PayloadCalendly['payload']) {
       `Quando: ${horarioISO}`,
       `Email: ${email}`,
     ];
-    if (contato.telefone) linhasDescricao.push(`Telefone: ${contato.telefone}`);
+    if (contato?.telefone) linhasDescricao.push(`Telefone: ${contato.telefone}`);
     if (linkMeet) linhasDescricao.push(`Meet: ${linkMeet}`);
 
-    await atualizarTarefa(idConta, config.KANBAN_BOARD_ID, idTarefa, {
-      board_step_id: ETAPAS_FUNIL.reuniaoAgendada.id,
-      description: linhasDescricao.join('\n'),
-    });
-    log.info({ idTarefa }, 'task movida para Reunião Agendada com dados do agendamento');
+    try {
+      await atualizarTarefa(idConta, config.KANBAN_BOARD_ID, idTarefa, {
+        board_step_id: ETAPAS_FUNIL.reuniaoAgendada.id,
+        description: linhasDescricao.join('\n'),
+      });
+      log.info({ idTarefa }, 'task movida para Reunião Agendada');
+    } catch (err) {
+      log.error({ err, idTarefa }, 'falha ao mover task');
+    }
   }
 
-  // Notifica Thiago com informações completas
+  // SEMPRE notifica Thiago (com infos completas), mesmo se contato/conversa não foi encontrado
   const linhasAlerta = [
     `📅 *Nova Sessão Estratégica agendada via Calendly*`,
     ``,
     `*Lead*: ${nome}`,
     `*Email*: ${email}`,
-    contato.telefone ? `*Telefone*: ${contato.telefone}` : '',
+    contato?.telefone ? `*Telefone*: ${contato.telefone}` : '',
     `*Horário*: ${horarioFormatado}`,
     linkMeet ? `*Link Meet*: ${linkMeet}` : '',
     idTarefa ? `*Card Kanban*: #${idTarefa}` : '',
+    !contato ? `\n⚠️ Lead não encontrado no Chatwoot pelo email — confirmação ainda NÃO foi enviada ao lead. Avise manualmente.` : '',
+    contato && !idConversa ? `\n⚠️ Lead encontrado mas sem conversa ativa — confirmação NÃO enviada.` : '',
   ].filter(Boolean);
 
-  await enviarMensagem(
-    config.CHATWOOT_ALERT_ACCOUNT_ID,
-    config.CHATWOOT_ALERT_CONVERSATION_ID,
-    { content: linhasAlerta.join('\n') },
-  );
+  try {
+    await enviarMensagem(
+      config.CHATWOOT_ALERT_ACCOUNT_ID,
+      config.CHATWOOT_ALERT_CONVERSATION_ID,
+      { content: linhasAlerta.join('\n') },
+    );
+    log.info({ contatoEncontrado: !!contato, conversaAtiva: !!idConversa }, 'Thiago notificado');
+  } catch (err) {
+    log.error({ err }, 'falha ao notificar Thiago');
+  }
 }
 
 export function rotaWebhookCalendly(app: Elysia) {

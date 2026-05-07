@@ -11,6 +11,7 @@ import { criarAgendarMensagem } from './agendarMensagem.ts';
 import { criarNotificarThiago } from './notificarThiago.ts';
 import { criarGerarRelatorio } from './gerarRelatorio.ts';
 import { criarCancelarCompromissos } from './cancelarCompromissos.ts';
+import { criarCancelarAgendamento } from './cancelarAgendamento.ts';
 import { criarListarMinhaAgenda } from './listarMinhaAgenda.ts';
 
 export type PerfilAgente = 'sdr' | 'assistente' | 'gestora';
@@ -38,6 +39,7 @@ export function criarFerramentas(ctx: ContextoAgente, perfil: PerfilAgente = 'sd
       criarNotificarThiago(),
       criarGerarRelatorio(),
       criarCancelarCompromissos(),
+      criarCancelarAgendamento(),
       criarListarMinhaAgenda(),
     ];
   }
