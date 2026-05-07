@@ -11,7 +11,7 @@ import type { EstadoPrincipalType } from '../estado.ts';
 import { llmPrincipal } from '../../../lib/openai.ts';
 import { carregarHistorico, salvarMensagem, salvarToolCallsXml } from '../../../lib/memoria-chat.ts';
 import { createLangfuseHandler, flushLangfuseHandler } from '../../../lib/langfuse.ts';
-import { criarFerramentas } from '../../../ferramentas/index.ts';
+import { criarFerramentas, type PerfilAgente } from '../../../ferramentas/index.ts';
 import { buildPromptIsys } from '../prompts/isys-system.ts';
 import { createChildLogger } from '../../../lib/logger.ts';
 import { consultar } from '../../../lib/db.ts';
@@ -51,7 +51,12 @@ export async function invocarAgente(
     mensagensColetadas: estado.mensagens_coletadas ?? '',
   };
 
-  const tools = criarFerramentas(ctx);
+  const { TELEFONE_THIAGO, TELEFONE_LETICIA } = await import('../../../dominio/vetrik.ts');
+  let perfil: PerfilAgente = 'sdr';
+  if (estado.telefone === TELEFONE_THIAGO) perfil = 'assistente';
+  else if (estado.telefone === TELEFONE_LETICIA) perfil = 'gestora';
+
+  const tools = criarFerramentas(ctx, perfil);
   const promptSistema = buildPromptIsys({ tarefa: estado.tarefa, funil: estado.funil, telefone: estado.telefone });
 
   const agente = createReactAgent({
@@ -60,11 +65,10 @@ export async function invocarAgente(
     stateModifier: promptSistema,
   });
 
-  const modoAssistente = estado.telefone === (await import('../../../dominio/vetrik.ts')).TELEFONE_THIAGO;
   const handler = createLangfuseHandler('agente-isys', {
     sessionId: estado.telefone,
     userId: `chatwoot-${estado.id_contato}`,
-    tags: ['vetrik', modoAssistente ? 'assistente' : 'sdr'],
+    tags: ['vetrik', perfil],
   });
 
   const inputMessage = new HumanMessage(estado.mensagens_coletadas ?? '');

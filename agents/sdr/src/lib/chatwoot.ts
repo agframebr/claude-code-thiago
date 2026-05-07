@@ -408,6 +408,39 @@ export async function buscarTarefaDaConversa(
   }
 }
 
+export async function listarTarefasKanban(
+  idConta: number,
+  idFunil?: number,
+): Promise<TarefaKanban[]> {
+  const query = idFunil ? `?board_id=${idFunil}` : '';
+  const r = await chamar<{ payload?: TarefaKanban[]; data?: TarefaKanban[] } | TarefaKanban[]>(
+    `/api/v1/accounts/${idConta}/kanban/tasks${query}`,
+  );
+  if (Array.isArray(r)) return r;
+  return (r as { payload?: TarefaKanban[]; data?: TarefaKanban[] }).payload ??
+    (r as { payload?: TarefaKanban[]; data?: TarefaKanban[] }).data ?? [];
+}
+
+export async function buscarConversaPorTelefone(
+  idConta: number,
+  telefone: string,
+): Promise<{ id: number } | null> {
+  try {
+    const resultado = await chamar<{ payload: Array<{ id: number }> }>(
+      `/api/v1/accounts/${idConta}/contacts/search?q=${encodeURIComponent(telefone)}&page=1`,
+    );
+    const contato = resultado?.payload?.[0];
+    if (!contato) return null;
+    const conversas = await chamar<{ payload: Array<{ id: number }> }>(
+      `/api/v1/accounts/${idConta}/contacts/${contato.id}/conversations`,
+    ).catch(() => ({ payload: [] }));
+    const conversa = conversas?.payload?.[0] ?? null;
+    return conversa ? { id: conversa.id } : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function agendarMensagem(
   idConta: number,
   idConversa: number,

@@ -4,6 +4,7 @@ import { config } from '../config.ts';
 import { createChildLogger } from '../lib/logger.ts';
 import { buscarContatoPorEmail, enviarMensagem, moverTarefa } from '../lib/chatwoot.ts';
 import { agendarMensagem } from '../lib/chatwoot.ts';
+import { criarEvento } from '../lib/google-calendar.ts';
 import { DateTime } from 'luxon';
 import type { PayloadCalendly } from '../tipos.ts';
 import { ETAPAS_FUNIL } from '../dominio/vetrik.ts';
@@ -33,6 +34,7 @@ async function processarBookingCriado(payload: PayloadCalendly['payload']) {
   const email = payload.email;
   const nome = payload.name;
   const horarioISO = payload.event.start_time;
+  const fimISO = payload.event.end_time;
   const horarioTZ = DateTime.fromISO(horarioISO).setZone('America/Sao_Paulo');
   const horarioFormatado = horarioTZ.toFormat("EEEE, d 'de' LLLL 'às' HH:mm", { locale: 'pt-BR' });
 
@@ -54,23 +56,47 @@ async function processarBookingCriado(payload: PayloadCalendly['payload']) {
     return;
   }
 
+  // Cria evento no Google Calendar com link Meet
+  let linkMeet: string | null = null;
+  try {
+    const evento = await criarEvento({
+      calendarId: config.CALENDAR_ID_THIAGO_FIGUEREDO,
+      inicio: horarioISO,
+      fim: fimISO,
+      titulo: `Sessão Estratégica — ${nome}`,
+      descricao: `Lead: ${nome}\nEmail: ${email}\nAgendado via Calendly`,
+      emailsParticipantes: [email],
+      criarLinkMeet: true,
+    });
+    linkMeet = evento.hangoutLink ?? evento.conferenceData?.entryPoints?.[0]?.uri ?? null;
+    log.info({ eventId: evento.id, linkMeet }, 'evento criado no Google Calendar');
+  } catch (err) {
+    log.warn({ err }, 'falha ao criar evento no Google Calendar — continua sem Meet');
+  }
+
   // Confirmação para o lead
-  const msgConfirmacao = `✅ Sessão Estratégica confirmada!
-
-📅 *${horarioFormatado}* (horário de Brasília)
-
-Um especialista da Vetrik vai entrar em contato com você no horário marcado. Qualquer dúvida antes disso, pode falar comigo aqui.`;
+  const msgConfirmacao = [
+    `✅ Sessão Estratégica confirmada!`,
+    ``,
+    `📅 *${horarioFormatado}* (horário de Brasília)`,
+    linkMeet ? `\n🔗 *Link da reunião*: ${linkMeet}` : '',
+    ``,
+    `Um especialista da Vetrik vai entrar em contato com você no horário marcado. Qualquer dúvida antes disso, pode falar comigo aqui.`,
+  ].join('\n').replace(/\n\n\n+/g, '\n\n').trim();
 
   await enviarMensagem(idConta, idConversa, { content: msgConfirmacao });
 
   // Lembrete 1h antes
   const horarioLembrete = horarioTZ.minus({ minutes: 60 });
   if (horarioLembrete > DateTime.now()) {
-    const msgLembrete = `⏰ Lembrete: sua Sessão Estratégica com a Vetrik começa em 1 hora!
-
-📅 ${horarioFormatado}
-
-Até já! 🚀`;
+    const msgLembrete = [
+      `⏰ Lembrete: sua Sessão Estratégica com a Vetrik começa em 1 hora!`,
+      ``,
+      `📅 ${horarioFormatado}`,
+      linkMeet ? `🔗 ${linkMeet}` : '',
+      ``,
+      `Até já! 🚀`,
+    ].join('\n').replace(/\n\n\n+/g, '\n\n').trim();
 
     await agendarMensagem(idConta, idConversa, msgLembrete, horarioLembrete.toISO()!);
     log.info({ scheduled_at: horarioLembrete.toISO() }, 'lembrete agendado');
@@ -82,11 +108,16 @@ Até já! 🚀`;
     log.info({ idTarefa }, 'task movida para Reunião Agendada');
   }
 
-  // Notifica Thiago
-  const alertaContent = `📅 Sessão Estratégica agendada via Calendly
-
-*Lead*: ${nome} (${email})
-*Horário*: ${horarioFormatado}`;
+  // Notifica Thiago com informações completas
+  const alertaContent = [
+    `📅 *Nova Sessão Estratégica agendada via Calendly*`,
+    ``,
+    `*Lead*: ${nome}`,
+    `*Email*: ${email}`,
+    `*Horário*: ${horarioFormatado}`,
+    linkMeet ? `*Link Meet*: ${linkMeet}` : '',
+    idTarefa ? `*Card Kanban*: #${idTarefa}` : '',
+  ].filter(Boolean).join('\n');
 
   await enviarMensagem(
     config.CHATWOOT_ALERT_ACCOUNT_ID,
