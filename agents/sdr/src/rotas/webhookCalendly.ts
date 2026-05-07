@@ -2,7 +2,7 @@ import { type Elysia, t } from 'elysia';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { config } from '../config.ts';
 import { createChildLogger } from '../lib/logger.ts';
-import { buscarContatoPorEmail, enviarMensagem, moverTarefa, agendarMensagem } from '../lib/chatwoot.ts';
+import { buscarContatoPorEmail, enviarMensagem, moverTarefa, agendarMensagem, atualizarTarefa } from '../lib/chatwoot.ts';
 import { DateTime } from 'luxon';
 import type { PayloadCalendly } from '../tipos.ts';
 import { ETAPAS_FUNIL } from '../dominio/vetrik.ts';
@@ -82,10 +82,21 @@ async function processarBookingCriado(payload: PayloadCalendly['payload']) {
     log.info({ scheduled_at: horarioLembrete.toISO() }, 'lembrete agendado');
   }
 
-  // Move task para Reunião Agendada
+  // Move task para Reunião Agendada e salva dados do agendamento na descrição
   if (idTarefa) {
-    await moverTarefa(idConta, config.KANBAN_BOARD_ID, idTarefa, ETAPAS_FUNIL.reuniaoAgendada.id);
-    log.info({ idTarefa }, 'task movida para Reunião Agendada');
+    const linhasDescricao = [
+      `📅 Sessão Estratégica agendada`,
+      `Data: ${horarioFormatado}`,
+      `Email: ${email}`,
+    ];
+    if (contato.telefone) linhasDescricao.push(`Telefone: ${contato.telefone}`);
+    if (linkMeet) linhasDescricao.push(`Meet: ${linkMeet}`);
+
+    await atualizarTarefa(idConta, config.KANBAN_BOARD_ID, idTarefa, {
+      board_step_id: ETAPAS_FUNIL.reuniaoAgendada.id,
+      description: linhasDescricao.join('\n'),
+    });
+    log.info({ idTarefa }, 'task movida para Reunião Agendada com dados do agendamento');
   }
 
   // Notifica Thiago com informações completas
