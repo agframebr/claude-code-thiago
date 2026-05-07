@@ -349,6 +349,22 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
   .lead-action.primary { background: var(--accent); color: white; border-color: var(--accent); }
   .lead-action.primary:hover { background: var(--accent-strong); }
 
+  /* Dropdown menu */
+  .dropdown { position: relative; display: inline-block; }
+  .dropdown-menu {
+    display: none; position: absolute; right: 0; top: calc(100% + 4px);
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px;
+    min-width: 180px; padding: 4px; z-index: 100;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .dropdown-menu.open { display: flex; flex-direction: column; }
+  .dropdown-item {
+    background: none; border: none; color: var(--text-2); text-align: left;
+    padding: 8px 12px; cursor: pointer; font-size: 13px; border-radius: 6px;
+    transition: all 0.1s;
+  }
+  .dropdown-item:hover { background: var(--bg-3); color: var(--text); }
+
   /* Search input */
   .search-input {
     width: 100%; padding: 10px 14px; background: var(--bg-2); border: 1px solid var(--border);
@@ -804,6 +820,10 @@ function leadRowHtml(l, mostrarDue = false) {
   const dueInfo = mostrarDue && l.due_date ? '<span class="badge ' + (new Date(l.due_date) < new Date() ? 'red' : 'yellow') + '">due: ' + new Date(l.due_date).toLocaleString('pt-BR') + '</span>' : '';
   const parado = l.dias_na_etapa > 7 ? '<span class="badge red">' + l.dias_na_etapa + 'd parado</span>'
     : l.dias_na_etapa > 3 ? '<span class="badge yellow">' + l.dias_na_etapa + 'd parado</span>' : '';
+  const etapas = state.stats?.pipeline?.por_etapa ?? [];
+  const opcoesMover = etapas.filter(e => String(e.id) !== String(l.etapa_id))
+    .map(e => '<button class="dropdown-item" onclick="moverLead(' + l.id + ',' + e.id + ',\\''+ escape(e.nome) +'\\')">' + escape(e.nome) + '</button>')
+    .join('');
   return '<div class="lead-row">'
     + '<div><div class="lead-name">' + escape(l.titulo) + '</div>'
     +   '<div class="lead-meta">' + escape(l.email || l.telefone || '') + ' · ' + l.ultima_atividade_relativa + ' atrás ' + parado + ' ' + dueInfo + '</div></div>'
@@ -811,17 +831,37 @@ function leadRowHtml(l, mostrarDue = false) {
     + '<div style="font-size:11px; color:var(--text-3)">' + l.dias_na_etapa + 'd na etapa</div>'
     + '<div style="font-size:11px; color:var(--text-3)">criado ' + l.dias_desde_criacao + 'd</div>'
     + '<div class="lead-actions">'
-    +   (linkChat ? '<a class="lead-action primary" href="' + linkChat + '" target="_blank">Conversa</a>' : '')
-    +   '<button class="lead-action danger" onclick="marcarPerdido(' + l.id + ')">Perdido</button>'
+    +   (linkChat ? '<a class="lead-action primary" href="' + linkChat + '" target="_blank">Chat</a>' : '')
+    +   '<div class="dropdown"><button class="lead-action" onclick="toggleDropdown(this)">Mover ▾</button>'
+    +     '<div class="dropdown-menu">' + opcoesMover + '</div>'
+    +   '</div>'
     + '</div>'
     + '</div>';
 }
 
-async function marcarPerdido(id) {
-  if (!confirm('Marcar lead como Perdido?')) return;
+function toggleDropdown(btn) {
+  // Fecha outros
+  document.querySelectorAll('.dropdown-menu.open').forEach(m => { if (m !== btn.nextElementSibling) m.classList.remove('open'); });
+  const menu = btn.nextElementSibling;
+  if (menu) menu.classList.toggle('open');
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.dropdown')) {
+    document.querySelectorAll('.dropdown-menu.open').forEach(m => m.classList.remove('open'));
+  }
+});
+
+async function moverLead(idTarefa, etapaId, nomeEtapa) {
+  document.querySelectorAll('.dropdown-menu.open').forEach(m => m.classList.remove('open'));
+  if (!confirm('Mover lead pra "' + nomeEtapa + '"?')) return;
   try {
-    const r = await fetch('/dashboard/api/leads/' + id + '/perdido?token=' + encodeURIComponent(TOKEN), { method: 'POST' });
-    if (r.ok) { state.leads = null; carregarLeads(); }
+    const r = await fetch('/dashboard/api/leads/' + idTarefa + '/move?token=' + encodeURIComponent(TOKEN), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ etapa_id: etapaId }),
+    });
+    if (r.ok) { state.leads = null; state.stats = null; await carregarStats(); carregarLeads(); }
     else alert('Erro: ' + r.status);
   } catch (e) { alert('Erro: ' + e.message); }
 }
