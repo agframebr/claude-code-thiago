@@ -91,6 +91,10 @@ function rotaPorOutputAgente(e: EstadoPrincipalType): string {
 }
 
 function rotaPorAudio(e: EstadoPrincipalType): string {
+  // Gestores (Thiago/Leticia) sempre respondem em texto, mesmo quando mandam áudio.
+  // Razão: comando executivo, resposta rápida e legível em texto > esperar TTS.
+  const ehGestorTel = e.telefone === '+5562998311402' || e.telefone === '+5562999358918';
+  if (ehGestorTel) return 'enviar_texto';
   return e.mensagem_de_audio ? 'formatar_ssml' : 'enviar_texto';
 }
 
