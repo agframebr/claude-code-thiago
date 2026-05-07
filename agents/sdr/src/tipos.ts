@@ -146,6 +146,12 @@ export interface PayloadCalendly {
         location?: string;
       };
     };
+    questions_and_answers?: Array<{
+      question: string;
+      answer: string;
+      position?: number;
+    }>;
+    text_reminder_number?: string;  // Calendly captura número se evento tem SMS reminder
     cancel_url?: string;
     reschedule_url?: string;
   };

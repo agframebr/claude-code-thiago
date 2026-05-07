@@ -2,7 +2,17 @@ import { type Elysia, t } from 'elysia';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { config } from '../config.ts';
 import { createChildLogger } from '../lib/logger.ts';
-import { buscarContatoPorEmail, enviarMensagem, moverTarefa, agendarMensagem, atualizarTarefa } from '../lib/chatwoot.ts';
+import {
+  buscarContatoPorEmail,
+  buscarContatoPorTelefone,
+  criarContato,
+  criarConversa,
+  enviarMensagem,
+  moverTarefa,
+  agendarMensagem,
+  atualizarTarefa,
+} from '../lib/chatwoot.ts';
+import { normalizarTelefoneBR } from '../dominio/vetrik.ts';
 import { DateTime } from 'luxon';
 import type { PayloadCalendly } from '../tipos.ts';
 import { ETAPAS_FUNIL } from '../dominio/vetrik.ts';
@@ -48,16 +58,78 @@ async function processarBookingCriado(payload: PayloadCalendly['payload']) {
   // Link Meet que o Calendly já criou no Google Calendar
   const linkMeet = eventoObj?.location?.join_url ?? null;
 
-  log.info({ email, horario: horarioISO, linkMeet, locationType: eventoObj?.location?.type }, 'booking Calendly recebido');
+  // Tenta extrair telefone das questions_and_answers do Calendly
+  let telefoneLead: string | null = null;
+  const qa = payload.questions_and_answers ?? [];
+  for (const item of qa) {
+    const q = (item.question ?? '').toLowerCase();
+    if (q.includes('telefone') || q.includes('whatsapp') || q.includes('phone') || q.includes('celular') || q.includes('contato')) {
+      const raw = item.answer?.trim();
+      if (raw) {
+        telefoneLead = normalizarTelefoneBR(raw);
+        break;
+      }
+    }
+  }
+  if (!telefoneLead && payload.text_reminder_number) {
+    telefoneLead = normalizarTelefoneBR(payload.text_reminder_number);
+  }
 
-  // Busca contato no Chatwoot pelo email
-  const contato = await buscarContatoPorEmail(config.CHATWOOT_ACCOUNT_ID, email).catch(() => null);
+  log.info({ email, horario: horarioISO, linkMeet, locationType: eventoObj?.location?.type, telefoneLead }, 'booking Calendly recebido');
+
   const idConta = config.CHATWOOT_ACCOUNT_ID;
-  const idConversa = contato?.ultima_conversa_id ?? null;
+  let contato = await buscarContatoPorEmail(idConta, email).catch(() => null);
+  let idConversa = contato?.ultima_conversa_id ?? null;
   const idTarefa = contato?.tarefa_id ?? null;
 
+  // Fallback 1: se não achou por email, tenta por telefone
+  if (!contato && telefoneLead) {
+    log.info({ telefoneLead }, 'tentando lookup por telefone');
+    const contatoPorTel = await buscarContatoPorTelefone(idConta, telefoneLead);
+    if (contatoPorTel) {
+      // Reusa o tipo via re-busca pelo email do contato encontrado pra ter ultima_conversa_id
+      contato = await buscarContatoPorEmail(idConta, contatoPorTel.email ?? '').catch(() => null);
+      if (!contato && contatoPorTel.id) {
+        // Pega conversas direto do contato encontrado
+        contato = { id: contatoPorTel.id, telefone: contatoPorTel.phone_number ?? telefoneLead, ultima_conversa_id: null, tarefa_id: null };
+      }
+      idConversa = contato?.ultima_conversa_id ?? null;
+    }
+  }
+
+  // Fallback 2: cria contato + conversa se temos telefone mas não achamos
+  if (!contato && telefoneLead) {
+    try {
+      log.info({ telefoneLead, email }, 'criando contato Chatwoot a partir do telefone do Calendly');
+      const novoContato = await criarContato(idConta, {
+        nome,
+        email,
+        telefone: telefoneLead,
+        idInbox: config.CHATWOOT_INBOX_ID,
+      });
+      const novaConversa = await criarConversa(
+        idConta,
+        novoContato.id,
+        config.CHATWOOT_INBOX_ID,
+      ).catch((err) => {
+        log.warn({ err }, 'criarConversa falhou — pode ser que precise de uma mensagem inicial');
+        return null;
+      });
+      contato = {
+        id: novoContato.id,
+        telefone: telefoneLead,
+        ultima_conversa_id: novaConversa?.id ?? null,
+        tarefa_id: null,
+      };
+      idConversa = contato.ultima_conversa_id;
+      log.info({ idContato: contato.id, idConversa }, 'contato + conversa criados via Calendly');
+    } catch (err) {
+      log.error({ err, telefoneLead }, 'falha ao criar contato/conversa no Chatwoot');
+    }
+  }
+
   if (!contato) {
-    log.warn({ email, nome }, 'contato não encontrado no Chatwoot pelo email — notifica Thiago mesmo assim');
+    log.warn({ email, nome }, 'contato não encontrado nem criado — notifica Thiago apenas');
   } else if (!idConversa) {
     log.warn({ email, idContato: contato.id }, 'contato sem conversa ativa — notifica Thiago mesmo assim');
   }

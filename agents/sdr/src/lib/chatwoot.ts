@@ -458,6 +458,64 @@ export async function listarTarefasKanban(
     (r as { payload?: TarefaKanban[]; data?: TarefaKanban[] }).data ?? [];
 }
 
+/**
+ * Cria contato no Chatwoot. Falha se phone_number já existir.
+ */
+export async function criarContato(
+  idConta: number,
+  campos: { nome: string; email?: string; telefone?: string; idInbox?: number },
+): Promise<{ id: number; phone_number?: string; email?: string }> {
+  const corpo: Record<string, unknown> = { name: campos.nome };
+  if (campos.email) corpo.email = campos.email;
+  if (campos.telefone) corpo.phone_number = campos.telefone;
+  if (campos.idInbox) corpo.inbox_id = campos.idInbox;
+  const r = await chamar<{ payload: { contact: { id: number; phone_number?: string; email?: string } } } | { id: number }>(
+    `/api/v1/accounts/${idConta}/contacts`,
+    { metodo: 'POST', corpo },
+  );
+  // Chatwoot retorna { payload: { contact } } ou { id }
+  const c = (r as { payload?: { contact?: { id: number } } }).payload?.contact ?? r;
+  return c as { id: number; phone_number?: string; email?: string };
+}
+
+/**
+ * Busca contato por telefone (formato +5562...).
+ */
+export async function buscarContatoPorTelefone(
+  idConta: number,
+  telefone: string,
+): Promise<{ id: number; email?: string; phone_number?: string } | null> {
+  try {
+    const r = await chamar<{ payload: Array<{ id: number; email?: string; phone_number?: string }> }>(
+      `/api/v1/accounts/${idConta}/contacts/search?q=${encodeURIComponent(telefone)}&page=1`,
+    );
+    return r?.payload?.[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Cria nova conversa para um contato existente.
+ */
+export async function criarConversa(
+  idConta: number,
+  idContato: number,
+  idInbox: number,
+  mensagemInicial?: string,
+): Promise<{ id: number }> {
+  const corpo: Record<string, unknown> = {
+    contact_id: idContato,
+    inbox_id: idInbox,
+  };
+  if (mensagemInicial) corpo.message = { content: mensagemInicial };
+  const r = await chamar<{ id: number }>(
+    `/api/v1/accounts/${idConta}/conversations`,
+    { metodo: 'POST', corpo },
+  );
+  return r;
+}
+
 export async function buscarConversaPorTelefone(
   idConta: number,
   telefone: string,
