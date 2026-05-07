@@ -7,6 +7,7 @@ import { createLangfuseHandler, flushLangfuseHandler } from '../../../lib/langfu
 import { criarAtualizarTarefa } from '../../../ferramentas/atualizarTarefa.ts';
 import { PROMPT_FOLLOW_UP_SEM_RESPOSTA, buildPromptFollowUpSemResposta } from '../prompts/follow-up-sem-resposta.ts';
 import { PROMPT_POS_CALL } from '../prompts/pos-call.ts';
+import { buildPromptPrimeiroContato } from '../prompts/primeiro-contato.ts';
 import { createChildLogger } from '../../../lib/logger.ts';
 
 const log = createChildLogger({ no: 'agentes_follow_up' });
@@ -55,6 +56,32 @@ export async function agenteFollowUpSemResposta(
     const ultima = msgs[msgs.length - 1];
     const mensagem = ultima ? (typeof ultima.content === 'string' ? ultima.content : JSON.stringify(ultima.content)) : '';
     log.debug({ len: mensagem.length }, 'follow-up sem resposta gerado');
+    return { mensagem_gerada: mensagem };
+  } finally {
+    await flushLangfuseHandler(handler);
+  }
+}
+
+// ---- Primeiro contato (card movido para "Contato Feito") ----
+export async function agentePrimeiroContato(
+  estado: EstadoFollowUpType,
+): Promise<Partial<EstadoFollowUpType>> {
+  const llm = llmPrincipal();
+  const handler = createLangfuseHandler('agente-primeiro-contato', {
+    sessionId: estado.telefone,
+    tags: ['primeiro-contato', 'sdr'],
+  });
+  try {
+    const prompt = buildPromptPrimeiroContato({
+      tituleTarefa: estado.titulo_tarefa,
+      descricaoTarefa: estado.descricao_tarefa,
+    });
+    const resp = await llm.invoke(
+      [new SystemMessage(prompt), new HumanMessage('<gerar primeira mensagem de contato com o lead>')],
+      { callbacks: handler ? [handler] : undefined },
+    );
+    const mensagem = typeof resp.content === 'string' ? resp.content : JSON.stringify(resp.content);
+    log.debug({ len: mensagem.length }, 'primeiro contato gerado');
     return { mensagem_gerada: mensagem };
   } finally {
     await flushLangfuseHandler(handler);

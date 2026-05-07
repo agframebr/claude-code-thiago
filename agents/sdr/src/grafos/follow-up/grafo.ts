@@ -3,8 +3,9 @@ import { EstadoFollowUp, type EstadoFollowUpType } from './estado.ts';
 import { extrairPayloadFollowUp } from './nos/extrairPayload.ts';
 import { buscarInfoFunil } from './nos/buscarInfoFunil.ts';
 import { atualizarDataTarefa } from './nos/atualizarDataTarefa.ts';
-import { agenteFollowUpSemResposta, agenteFollowUpPosCall } from './nos/agentes.ts';
+import { agenteFollowUpSemResposta, agenteFollowUpPosCall, agentePrimeiroContato } from './nos/agentes.ts';
 import { enviarMensagemFollowUp } from './nos/enviarMensagem.ts';
+import { resolverConversa } from './nos/resolverConversa.ts';
 import { getCheckpointer } from '../../lib/checkpointer.ts';
 import { createLangfuseHandler, flushLangfuseHandler } from '../../lib/langfuse.ts';
 import { createChildLogger } from '../../lib/logger.ts';
@@ -12,7 +13,7 @@ import type { PayloadWebhook } from '../../tipos.ts';
 
 const log = createChildLogger({ grafo: 'follow-up' });
 
-// kanban_task_updated — só processa quando stage muda para "Call Realizada"
+// kanban_task_updated — só processa quando stage muda para "Call Realizada" ou "Entrar em Contato"
 function roteadorEvento(estado: EstadoFollowUpType): string {
   if (estado.evento === 'kanban_task_updated') return 'verificar_call_realizada';
   return 'buscar_info_funil';
@@ -21,13 +22,14 @@ function roteadorEvento(estado: EstadoFollowUpType): string {
 function verificarCallRealizada(estado: EstadoFollowUpType): string {
   const nomeAtual = estado.etapa_atual_para_renovacao ?? '';
   if (nomeAtual === 'Call Realizada') return 'atualizar_data_tarefa';
+  if (nomeAtual === 'Entrar em Contato') return 'agente_primeiro_contato';
   return END;
 }
 
 // kanban_task_overdue — classifica pelo nome da etapa atual
 function classificarTipoFollowUp(estado: EstadoFollowUpType): string {
   const nome = estado.nome_etapa_atual;
-  if (['Mapeado', 'Contato Feito', 'Respondeu'].includes(nome)) return 'agente_sem_resposta';
+  if (['Contato Feito', 'Respondeu'].includes(nome)) return 'agente_sem_resposta';
   if (nome === 'Call Realizada') return 'agente_pos_call';
   return END;
 }
@@ -45,10 +47,12 @@ async function buildGrafo() {
     .addNode('classificar_tipo', async (e: EstadoFollowUpType) => {
       const nome = e.nome_etapa_atual;
       let tipo: EstadoFollowUpType['tipo_follow_up'] = 'ignorar';
-      if (['Mapeado', 'Contato Feito', 'Respondeu'].includes(nome)) tipo = 'sem_resposta';
+      if (['Contato Feito', 'Respondeu'].includes(nome)) tipo = 'sem_resposta';
       else if (nome === 'Call Realizada') tipo = 'pos_call';
       return { tipo_follow_up: tipo };
     })
+    .addNode('resolver_conversa', resolverConversa)
+    .addNode('agente_primeiro_contato', agentePrimeiroContato)
     .addNode('agente_sem_resposta', agenteFollowUpSemResposta)
     .addNode('agente_pos_call', agenteFollowUpPosCall)
     .addNode('enviar_mensagem', enviarMensagemFollowUp)
@@ -60,6 +64,7 @@ async function buildGrafo() {
     })
     .addConditionalEdges('verificar_call_realizada', verificarCallRealizada, {
       atualizar_data_tarefa: 'atualizar_data_tarefa',
+      agente_primeiro_contato: 'resolver_conversa',
       [END]: END,
     })
     .addEdge('atualizar_data_tarefa', 'buscar_info_funil')
@@ -69,6 +74,11 @@ async function buildGrafo() {
       agente_pos_call: 'agente_pos_call',
       [END]: END,
     })
+    .addConditionalEdges('resolver_conversa', (e: EstadoFollowUpType) => e.id_conversa > 0 ? 'agente_primeiro_contato' : END, {
+      agente_primeiro_contato: 'agente_primeiro_contato',
+      [END]: END,
+    })
+    .addEdge('agente_primeiro_contato', 'enviar_mensagem')
     .addEdge('agente_sem_resposta', 'enviar_mensagem')
     .addEdge('agente_pos_call', 'enviar_mensagem')
     .addEdge('enviar_mensagem', END);

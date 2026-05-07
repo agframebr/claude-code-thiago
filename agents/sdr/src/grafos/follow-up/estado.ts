@@ -33,6 +33,9 @@ export const EstadoFollowUp = Annotation.Root({
   // Para kanban_task_updated (renovação de prazo)
   etapa_anterior: Annotation<string | null>(),
   etapa_atual_para_renovacao: Annotation<string | null>(),
+
+  // ID da etapa para mover o card após envio (usado no fluxo "Entrar em Contato")
+  mover_apos_envio: Annotation<string | null>(),
 });
 
 export type EstadoFollowUpType = typeof EstadoFollowUp.State;

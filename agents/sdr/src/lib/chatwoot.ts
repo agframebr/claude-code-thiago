@@ -344,6 +344,7 @@ export interface PayloadAtualizarTarefa {
   description?: string;
   board_step_id?: number | string;
   due_date?: string | null;
+  conversation_ids?: number[];
 }
 
 export async function atualizarTarefa(
@@ -369,6 +370,80 @@ export async function moverTarefa(
 
 export async function buscarTarefa(idConta: number, idTarefa: number): Promise<TarefaKanban> {
   return chamar<TarefaKanban>(`/api/v1/accounts/${idConta}/kanban/tasks/${idTarefa}`);
+}
+
+export async function vincularConversaATarefa(
+  idConta: number,
+  idTarefa: number,
+  idConversa: number,
+): Promise<void> {
+  await chamar(`/api/v1/accounts/${idConta}/kanban/tasks/${idTarefa}`, {
+    metodo: 'PATCH',
+    corpo: { conversation_ids: [idConversa] },
+  });
+}
+
+/**
+ * Busca ou cria uma conversa para um contato (por telefone).
+ * Retorna { idContato, idConversa }.
+ */
+export async function resolverContatoEConversa(
+  idConta: number,
+  telefone: string,
+  idInbox: number,
+  nomeContato?: string,
+): Promise<{ idContato: number; idConversa: number }> {
+  // 1. Tenta achar contato existente
+  let contato = await buscarContatoPorTelefone(idConta, telefone);
+
+  // 2. Cria se não existir
+  if (!contato) {
+    const novo = await criarContato(idConta, {
+      nome: nomeContato || telefone,
+      telefone,
+      idInbox,
+    });
+    contato = { id: novo.id };
+  }
+
+  // 3. Busca conversas do contato
+  const convs = await chamar<{ payload: Array<{ id: number; inbox_id?: number }> }>(
+    `/api/v1/accounts/${idConta}/contacts/${contato.id}/conversations`,
+  ).catch(() => ({ payload: [] as Array<{ id: number; inbox_id?: number }> }));
+
+  // 4. Reutiliza conversa existente na inbox certa (ou qualquer uma)
+  const convExistente = convs.payload.find((c) => c.inbox_id === idInbox) ?? convs.payload[0];
+  if (convExistente) {
+    return { idContato: contato.id, idConversa: convExistente.id };
+  }
+
+  // 5. Cria conversa nova
+  const novaConv = await criarConversa(idConta, contato.id, idInbox);
+  return { idContato: contato.id, idConversa: novaConv.id };
+}
+
+export async function buscarConversasDaTarefa(
+  idConta: number,
+  idTarefa: number,
+): Promise<{ idConversa: number; idInbox: number } | null> {
+  try {
+    const tarefa = await chamar<TarefaKanban & { conversation_ids?: number[]; conversations?: Array<{ id: number; inbox_id?: number }> }>(
+      `/api/v1/accounts/${idConta}/kanban/tasks/${idTarefa}`,
+    );
+    // Tenta conversations[] embutido
+    const conv = tarefa.conversations?.[0];
+    if (conv?.id) return { idConversa: conv.id, idInbox: conv.inbox_id ?? 0 };
+    // Tenta conversation_ids[]
+    const convId = tarefa.conversation_ids?.[0];
+    if (!convId) return null;
+    // Busca detalhes da conversa para obter inbox_id
+    const detalhes = await chamar<{ id: number; inbox_id?: number }>(
+      `/api/v1/accounts/${idConta}/conversations/${convId}`,
+    ).catch(() => null);
+    return { idConversa: convId, idInbox: detalhes?.inbox_id ?? 0 };
+  } catch {
+    return null;
+  }
 }
 
 export async function buscarContatoPorEmail(

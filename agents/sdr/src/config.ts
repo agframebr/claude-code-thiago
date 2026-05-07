@@ -30,17 +30,18 @@ const esquema = z.object({
   CHATWOOT_ALERT_INBOX_ID: numericString,
   CHATWOOT_ALERT_ACCOUNT_ID: numericString,
 
-  // Kanban — "Prospecção VETRIK" (board ID 2)
-  KANBAN_BOARD_ID: numericString.default(2),
-  KANBAN_STEP_MAPEADO: numericString.default(9),
-  KANBAN_STEP_CONTATO_FEITO: numericString.default(10),
-  KANBAN_STEP_RESPONDEU: numericString.default(11),
-  KANBAN_STEP_REUNIAO_AGENDADA: numericString.default(16),
-  KANBAN_STEP_CALL_REALIZADA: numericString.default(17),
-  KANBAN_STEP_PROPOSTA_ENVIADA: numericString.default(12),
-  KANBAN_STEP_NEGOCIANDO: numericString.default(13),
-  KANBAN_STEP_FECHADO: numericString.default(14),
-  KANBAN_STEP_PERDIDO: numericString.default(15),
+  // Kanban — "Prospecção Ísys" (board ID 3)
+  KANBAN_BOARD_ID: numericString.default(3),
+  KANBAN_STEP_MAPEADO: numericString.default(20),
+  KANBAN_STEP_ENTRAR_EM_CONTATO: numericString.default(21),
+  KANBAN_STEP_CONTATO_FEITO: numericString.default(22),
+  KANBAN_STEP_RESPONDEU: numericString.default(23),
+  KANBAN_STEP_REUNIAO_AGENDADA: numericString.default(24),
+  KANBAN_STEP_CALL_REALIZADA: numericString.default(25),
+  KANBAN_STEP_PROPOSTA_ENVIADA: numericString.default(26),
+  KANBAN_STEP_NEGOCIANDO: numericString.default(27),
+  KANBAN_STEP_FECHADO: numericString.default(28),
+  KANBAN_STEP_PERDIDO: numericString.default(29),
 
   // Calendly
   CALENDLY_LINK: z.string().url('CALENDLY_LINK deve ser uma URL válida'),
