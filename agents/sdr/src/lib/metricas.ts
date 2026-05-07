@@ -23,6 +23,160 @@ export interface MetricasPipeline {
   taxa_conversao_reuniao_para_fechado: number;
 }
 
+export interface LeadDetalhado {
+  id: number;
+  titulo: string;
+  etapa_id: number | string;
+  etapa_nome: string;
+  etapa_cor: string;
+  descricao: string;
+  telefone: string | null;
+  email: string | null;
+  due_date: string | null;
+  conversation_ids: number[];
+  created_at: string | null;
+  updated_at: string | null;
+  dias_na_etapa: number;
+  dias_desde_criacao: number;
+  ultima_atividade_relativa: string;
+}
+
+export interface AgendaCompleta {
+  por_dia: Array<{
+    data: string;
+    data_formatada: string;
+    eventos: Array<{
+      id: string;
+      titulo: string;
+      inicio: string;
+      fim: string;
+      inicio_formatado: string;
+      duracao_min: number;
+      link_meet: string | null;
+      attendees: string[];
+      descricao: string;
+    }>;
+  }>;
+  total: number;
+}
+
+export async function listarLeadsDetalhado(): Promise<LeadDetalhado[]> {
+  try {
+    const [funil, tarefas] = await Promise.all([
+      buscarFunilKanban(config.CHATWOOT_ACCOUNT_ID, config.KANBAN_BOARD_ID),
+      listarTarefasKanban(config.CHATWOOT_ACCOUNT_ID, config.KANBAN_BOARD_ID),
+    ]);
+    const stepsMap = new Map<number | string, EtapaKanban>();
+    for (const s of funil.steps ?? []) stepsMap.set(s.id, s);
+
+    const agora = DateTime.now();
+    const leads: LeadDetalhado[] = [];
+
+    for (const t of tarefas) {
+      const desc = t.description ?? '';
+      const matchTel = desc.match(/Telefone:\s*(\+\d+)/);
+      const matchEmail = desc.match(/Email:\s*([^\s\n]+@[^\s\n]+)/);
+
+      const created = (t as TarefaKanban & { created_at?: string }).created_at;
+      const updated = (t as TarefaKanban & { updated_at?: string }).updated_at;
+      const stepChanged = (t as TarefaKanban & { step_changed_at?: string }).step_changed_at;
+
+      const dtCreated = created ? DateTime.fromISO(created) : null;
+      const dtUpdated = updated ? DateTime.fromISO(updated) : null;
+      const dtStepChanged = stepChanged ? DateTime.fromISO(stepChanged) : null;
+
+      const dias_desde_criacao = dtCreated ? Math.floor(agora.diff(dtCreated, 'days').days) : 0;
+      const dias_na_etapa = dtStepChanged
+        ? Math.floor(agora.diff(dtStepChanged, 'days').days)
+        : (dtUpdated ? Math.floor(agora.diff(dtUpdated, 'days').days) : 0);
+
+      const stepInfo = stepsMap.get(t.board_step?.id ?? 0);
+      const ultimaAtv = dtUpdated ?? dtCreated;
+      const ultima_atividade_relativa = ultimaAtv ? formatarRelativo(ultimaAtv, agora) : '-';
+
+      leads.push({
+        id: t.id,
+        titulo: t.title ?? '(sem nome)',
+        etapa_id: t.board_step?.id ?? 'sem_etapa',
+        etapa_nome: stepInfo?.name ?? t.board_step?.name ?? '?',
+        etapa_cor: stepInfo?.color ?? '#666',
+        descricao: desc,
+        telefone: matchTel?.[1] ?? null,
+        email: matchEmail?.[1] ?? null,
+        due_date: t.due_date ?? null,
+        conversation_ids: (t as TarefaKanban & { conversation_ids?: number[] }).conversation_ids ?? [],
+        created_at: created ?? null,
+        updated_at: updated ?? null,
+        dias_na_etapa,
+        dias_desde_criacao,
+        ultima_atividade_relativa,
+      });
+    }
+
+    leads.sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''));
+    return leads;
+  } catch {
+    return [];
+  }
+}
+
+export async function listarAgendaCompleta(dias = 7): Promise<AgendaCompleta> {
+  const agora = DateTime.now().setZone('America/Sao_Paulo');
+  const fim = agora.plus({ days: dias }).endOf('day');
+
+  try {
+    const eventos = await listarEventos({
+      calendarId: 'primary',
+      timeMin: agora.toISO()!,
+      timeMax: fim.toISO()!,
+      maxResults: 200,
+    });
+
+    // Agrupa por dia
+    const porDiaMap = new Map<string, AgendaCompleta['por_dia'][number]['eventos']>();
+    for (const e of eventos) {
+      const ini = e.start?.dateTime ?? e.start?.date;
+      if (!ini || !e.id) continue;
+      const dt = DateTime.fromISO(ini).setZone('America/Sao_Paulo');
+      const dataKey = dt.toFormat('yyyy-MM-dd');
+      const fimEvento = e.end?.dateTime ?? e.end?.date ?? ini;
+      const dtFim = DateTime.fromISO(fimEvento);
+      const duracaoMin = Math.round(dtFim.diff(dt, 'minutes').minutes);
+
+      const ev = {
+        id: e.id,
+        titulo: e.summary ?? '(sem título)',
+        inicio: ini,
+        fim: fimEvento,
+        inicio_formatado: dt.toFormat('HH:mm'),
+        duracao_min: duracaoMin,
+        link_meet: e.hangoutLink ?? null,
+        attendees: (e.attendees ?? []).map((a) => a.email).filter(Boolean) as string[],
+        descricao: e.description ?? '',
+      };
+
+      const lista = porDiaMap.get(dataKey) ?? [];
+      lista.push(ev);
+      porDiaMap.set(dataKey, lista);
+    }
+
+    const por_dia: AgendaCompleta['por_dia'] = [];
+    const sorted = Array.from(porDiaMap.entries()).sort(([a], [b]) => a.localeCompare(b));
+    for (const [dataKey, evs] of sorted) {
+      const dt = DateTime.fromISO(dataKey).setZone('America/Sao_Paulo');
+      por_dia.push({
+        data: dataKey,
+        data_formatada: dt.toFormat("EEEE, d 'de' LLLL", { locale: 'pt-BR' }),
+        eventos: evs.sort((a, b) => a.inicio.localeCompare(b.inicio)),
+      });
+    }
+
+    return { por_dia, total: eventos.length };
+  } catch {
+    return { por_dia: [], total: 0 };
+  }
+}
+
 export interface MetricasAgenda {
   hoje: Array<{
     titulo: string;
