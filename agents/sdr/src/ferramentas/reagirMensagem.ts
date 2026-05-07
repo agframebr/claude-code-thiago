@@ -19,13 +19,24 @@ export function criarReagirMensagem(ctx: Pick<ContextoAgente, 'idConta' | 'idCon
     },
     {
       name: 'Reagir_mensagem',
-      description: `Envia uma mensagem de reação como resposta a uma mensagem do usuário. Reação é sempre um emoji.
+      description: `Reage à última mensagem do lead com um emoji (reaction nativa do WhatsApp). Use pra humanizar a conversa.
 
-Ignore a saída dessa ferramenta, ela é a mensagem enviada para o contato.
+QUANDO usar:
+- Lead se apresentou / disse o nome → ❤️
+- Lead confirmou horário ou decisão → ✅
+- Lead mandou email/Instagram/site válido → 👍
+- Lead compartilhou algo positivo sobre o negócio → 😀 ou 👍
 
-**NUNCA UTILIZE ESSA FERRAMENTA MÚLTIPLAS VEZES SEGUIDAS**`,
+QUANDO NÃO usar:
+- Já reagiu nas últimas 2 mensagens (nunca em sequência)
+- Mensagem é objeção, dúvida ou hesitação
+- Não há contexto positivo claro
+
+Após reagir, CONTINUE com a próxima mensagem em texto — reação não substitui resposta.
+
+NUNCA chame essa ferramenta múltiplas vezes seguidas no mesmo turno.`,
       schema: z.object({
-        Content: z.string().describe('Emoji de reação. Permitidos: 😀 ❤️ 👍 👀 ✅'),
+        Content: z.string().describe('Emoji único. Permitidos: 😀 ❤️ 👍 👀 ✅'),
       }),
     },
   );
