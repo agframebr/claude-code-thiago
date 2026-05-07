@@ -429,6 +429,22 @@ export async function buscarTarefaDaConversa(
   }
 }
 
+/**
+ * Envia uma reaction nativa do WhatsApp em uma mensagem específica.
+ * Endpoint Chatwoot/Baileys: POST /messages/{id}/reactions com {"emoji":"❤️"}
+ */
+export async function enviarReacao(
+  idConta: number,
+  idConversa: number,
+  idMensagem: number,
+  emoji: string,
+): Promise<void> {
+  await chamar(
+    `/api/v1/accounts/${idConta}/conversations/${idConversa}/messages/${idMensagem}/reactions`,
+    { metodo: 'POST', corpo: { emoji } },
+  );
+}
+
 export async function listarTarefasKanban(
   idConta: number,
   idFunil?: number,

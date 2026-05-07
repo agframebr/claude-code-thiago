@@ -1,6 +1,6 @@
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { enviarMensagem } from '../lib/chatwoot.ts';
+import { enviarReacao } from '../lib/chatwoot.ts';
 import { createChildLogger } from '../lib/logger.ts';
 import type { ContextoAgente } from '../tipos.ts';
 
@@ -9,13 +9,13 @@ const log = createChildLogger({ modulo: 'tool.reagirMensagem' });
 export function criarReagirMensagem(ctx: Pick<ContextoAgente, 'idConta' | 'idConversa' | 'idMensagem'>) {
   return tool(
     async ({ Content }) => {
-      log.debug({ emoji: Content }, 'reagirMensagem chamado');
-      await enviarMensagem(ctx.idConta, ctx.idConversa, {
-        content: Content,
-        replyToMessageId: ctx.idMensagem,
-        isReaction: true,
-      });
-      return JSON.stringify({ resultado: 'REAÇÃO ENVIADA' });
+      log.debug({ emoji: Content, idMsg: ctx.idMensagem }, 'reagirMensagem chamado');
+      if (!ctx.idMensagem) {
+        return JSON.stringify({ erro: 'Sem id de mensagem para reagir.' });
+      }
+      await enviarReacao(ctx.idConta, ctx.idConversa, ctx.idMensagem, Content);
+      log.info({ emoji: Content, idMsg: ctx.idMensagem }, 'reaction enviada');
+      return JSON.stringify({ resultado: 'REACTION ENVIADA' });
     },
     {
       name: 'Reagir_mensagem',
