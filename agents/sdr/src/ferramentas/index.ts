@@ -15,10 +15,10 @@ import { criarCancelarCompromissos } from './cancelarCompromissos.ts';
 export type PerfilAgente = 'sdr' | 'assistente' | 'gestora';
 
 export function criarFerramentas(ctx: ContextoAgente, perfil: PerfilAgente = 'sdr') {
-  const base = [
+  // Ferramentas comuns a TODOS os perfis (sem Escalar_humano — gestores não podem ser escalados)
+  const comuns = [
     criarBuscarJanelasDisponiveis(),
     criarBuscarAgendamentosDoContato(ctx),
-    criarEscalarHumano(ctx),
     criarRefletir(),
     criarReagirMensagem(ctx),
     criarAtualizarTarefa(ctx),
@@ -26,12 +26,12 @@ export function criarFerramentas(ctx: ContextoAgente, perfil: PerfilAgente = 'sd
   ];
 
   if (perfil === 'gestora') {
-    return [...base, criarGerarRelatorio()];
+    return [...comuns, criarGerarRelatorio()];
   }
 
   if (perfil === 'assistente') {
     return [
-      ...base,
+      ...comuns,
       criarCriarAgendamento(ctx),
       criarAgendarMensagem(ctx),
       criarNotificarThiago(),
@@ -40,9 +40,10 @@ export function criarFerramentas(ctx: ContextoAgente, perfil: PerfilAgente = 'sd
     ];
   }
 
-  // sdr — ferramentas padrão de prospecção
+  // sdr — perfil padrão (lead externo). Único que pode escalar para humano.
   return [
-    ...base,
+    ...comuns,
+    criarEscalarHumano(ctx),
     criarCriarAgendamento(ctx),
     criarAgendarMensagem(ctx),
     criarNotificarThiago(),

@@ -12,6 +12,15 @@ export function criarEscalarHumano(ctx: Pick<ContextoAgente, 'nome' | 'telefone'
     async ({ resumo_conversa, destino }) => {
       log.debug({ telefone: ctx.telefone, destino }, 'escalarHumano chamado');
 
+      // GUARD: nunca escalar/desabilitar gestores (Thiago/Leticia) — eles SÃO os humanos
+      const ehGestor = ctx.telefone === config.TELEFONE_THIAGO || ctx.telefone === config.TELEFONE_LETICIA;
+      if (ehGestor) {
+        log.warn({ telefone: ctx.telefone }, 'tentativa de escalar gestor BLOQUEADA — gestores nunca são escalados');
+        return JSON.stringify({
+          erro: 'Você está falando com um gestor da operação. Gestores nunca devem ser escalados nem ter o agente desativado. Continue a conversa normalmente, com acesso completo às informações solicitadas.',
+        });
+      }
+
       await adicionarEtiquetas(ctx.idConta, ctx.idConversa, ['agente-off']);
 
       const telefoneResponsavel = destino === 'leticia' ? config.TELEFONE_LETICIA : config.TELEFONE_THIAGO;
