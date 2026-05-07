@@ -5,11 +5,13 @@
  * Uso: bun run scripts/puxar-leads-apify.ts
  */
 
-const APIFY_TOKEN = 'apify_api_1y2SGHh8dIrg2kt1biGwNVt7LX7reQ1qqlD7';
+const APIFY_TOKEN = process.env.APIFY_TOKEN ?? '';
+if (!APIFY_TOKEN) throw new Error('APIFY_TOKEN não definido');
+
 const ACTOR_ID = 'compass~crawler-google-places';
 
-const CHATWOOT_BASE = 'https://chatwoot.vetrik.com.br';
-const CHATWOOT_TOKEN = 'vjRSDFqAHzJQKXK7wt4vFjGo';
+const CHATWOOT_BASE = process.env.CHATWOOT_BASE_URL ?? 'https://chatwoot.vetrik.com.br';
+const CHATWOOT_TOKEN = process.env.CHATWOOT_API_TOKEN ?? '';
 const ACCOUNT_ID = 1;
 const BOARD_ID = 3;
 const STEP_MAPEADO = 20;
