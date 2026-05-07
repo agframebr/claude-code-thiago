@@ -2,9 +2,7 @@ import { type Elysia, t } from 'elysia';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { config } from '../config.ts';
 import { createChildLogger } from '../lib/logger.ts';
-import { buscarContatoPorEmail, enviarMensagem, moverTarefa } from '../lib/chatwoot.ts';
-import { agendarMensagem } from '../lib/chatwoot.ts';
-import { criarEvento } from '../lib/google-calendar.ts';
+import { buscarContatoPorEmail, enviarMensagem, moverTarefa, agendarMensagem } from '../lib/chatwoot.ts';
 import { DateTime } from 'luxon';
 import type { PayloadCalendly } from '../tipos.ts';
 import { ETAPAS_FUNIL } from '../dominio/vetrik.ts';
@@ -34,11 +32,13 @@ async function processarBookingCriado(payload: PayloadCalendly['payload']) {
   const email = payload.email;
   const nome = payload.name;
   const horarioISO = payload.event.start_time;
-  const fimISO = payload.event.end_time;
   const horarioTZ = DateTime.fromISO(horarioISO).setZone('America/Sao_Paulo');
   const horarioFormatado = horarioTZ.toFormat("EEEE, d 'de' LLLL 'às' HH:mm", { locale: 'pt-BR' });
 
-  log.info({ email, horario: horarioISO }, 'booking Calendly recebido');
+  // Link Meet que o Calendly já criou no Google Calendar
+  const linkMeet = payload.event.location?.join_url ?? null;
+
+  log.info({ email, horario: horarioISO, linkMeet }, 'booking Calendly recebido');
 
   // Busca contato no Chatwoot pelo email
   const contato = await buscarContatoPorEmail(config.CHATWOOT_ACCOUNT_ID, email).catch(() => null);
@@ -56,57 +56,29 @@ async function processarBookingCriado(payload: PayloadCalendly['payload']) {
     return;
   }
 
-  // Cria evento no Google Calendar com link Meet
-  const telefoneLead = contato.telefone ?? '';
-  let linkMeet: string | null = null;
-  try {
-    const descricaoEvento = [
-      `Lead: ${nome}`,
-      `Email: ${email}`,
-      telefoneLead ? `Telefone: ${telefoneLead}` : '',
-      `Agendado via Calendly`,
-    ].filter(Boolean).join('\n');
-
-    const evento = await criarEvento({
-      calendarId: config.CALENDAR_ID_THIAGO_FIGUEREDO,
-      inicio: horarioISO,
-      fim: fimISO,
-      titulo: `Sessão Estratégica — ${nome}`,
-      descricao: descricaoEvento,
-      emailsParticipantes: [email],
-      criarLinkMeet: true,
-    });
-    linkMeet = evento.hangoutLink ?? evento.conferenceData?.entryPoints?.[0]?.uri ?? null;
-    log.info({ eventId: evento.id, linkMeet }, 'evento criado no Google Calendar');
-  } catch (err) {
-    log.warn({ err }, 'falha ao criar evento no Google Calendar — continua sem Meet');
-  }
-
   // Confirmação para o lead
-  const msgConfirmacao = [
+  const linhasConfirmacao = [
     `✅ Sessão Estratégica confirmada!`,
     ``,
     `📅 *${horarioFormatado}* (horário de Brasília)`,
-    linkMeet ? `\n🔗 *Link da reunião*: ${linkMeet}` : '',
-    ``,
-    `Um especialista da Vetrik vai entrar em contato com você no horário marcado. Qualquer dúvida antes disso, pode falar comigo aqui.`,
-  ].join('\n').replace(/\n\n\n+/g, '\n\n').trim();
+  ];
+  if (linkMeet) linhasConfirmacao.push(``, `🔗 *Link da reunião*: ${linkMeet}`);
+  linhasConfirmacao.push(``, `Um especialista da Vetrik vai entrar em contato com você no horário marcado. Qualquer dúvida antes disso, pode falar comigo aqui.`);
 
-  await enviarMensagem(idConta, idConversa, { content: msgConfirmacao });
+  await enviarMensagem(idConta, idConversa, { content: linhasConfirmacao.join('\n') });
 
   // Lembrete 1h antes
   const horarioLembrete = horarioTZ.minus({ minutes: 60 });
   if (horarioLembrete > DateTime.now()) {
-    const msgLembrete = [
+    const linhasLembrete = [
       `⏰ Lembrete: sua Sessão Estratégica com a Vetrik começa em 1 hora!`,
       ``,
       `📅 ${horarioFormatado}`,
-      linkMeet ? `🔗 ${linkMeet}` : '',
-      ``,
-      `Até já! 🚀`,
-    ].join('\n').replace(/\n\n\n+/g, '\n\n').trim();
+    ];
+    if (linkMeet) linhasLembrete.push(`🔗 ${linkMeet}`);
+    linhasLembrete.push(``, `Até já! 🚀`);
 
-    await agendarMensagem(idConta, idConversa, msgLembrete, horarioLembrete.toISO()!);
+    await agendarMensagem(idConta, idConversa, linhasLembrete.join('\n'), horarioLembrete.toISO()!);
     log.info({ scheduled_at: horarioLembrete.toISO() }, 'lembrete agendado');
   }
 
@@ -117,26 +89,26 @@ async function processarBookingCriado(payload: PayloadCalendly['payload']) {
   }
 
   // Notifica Thiago com informações completas
-  const alertaContent = [
+  const linhasAlerta = [
     `📅 *Nova Sessão Estratégica agendada via Calendly*`,
     ``,
     `*Lead*: ${nome}`,
     `*Email*: ${email}`,
+    contato.telefone ? `*Telefone*: ${contato.telefone}` : '',
     `*Horário*: ${horarioFormatado}`,
     linkMeet ? `*Link Meet*: ${linkMeet}` : '',
     idTarefa ? `*Card Kanban*: #${idTarefa}` : '',
-  ].filter(Boolean).join('\n');
+  ].filter(Boolean);
 
   await enviarMensagem(
     config.CHATWOOT_ALERT_ACCOUNT_ID,
     config.CHATWOOT_ALERT_CONVERSATION_ID,
-    { content: alertaContent },
+    { content: linhasAlerta.join('\n') },
   );
 }
 
 export function rotaWebhookCalendly(app: Elysia) {
   return app.post('/webhook/calendly', async ({ body, headers, set }) => {
-    // body chega como string bruta (type: 'text') para preservar o conteúdo exato para HMAC
     const rawBody = body as string;
     const headerAssinatura = (headers['calendly-webhook-signature'] as string) ?? '';
 

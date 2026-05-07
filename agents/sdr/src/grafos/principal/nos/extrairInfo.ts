@@ -41,13 +41,15 @@ export async function extrairInfo(
   if (!tarefa && idConversaNum && !ehGestor) {
     try {
       const titulo = nomeContato || telefoneContato || `Lead #${idConversaNum}`;
-      tarefa = await criarTarefaKanban(
+      await criarTarefaKanban(
         config.CHATWOOT_ACCOUNT_ID,
         config.KANBAN_BOARD_ID,
         ETAPAS_FUNIL.mapeado.id,
         titulo,
         idConversaNum,
-      ) as EstadoPrincipalType['tarefa'];
+      );
+      // Re-busca via API para obter tarefa com board/steps populados
+      tarefa = await buscarTarefaDaConversa(config.CHATWOOT_ACCOUNT_ID, idConversaNum).catch(() => null) as EstadoPrincipalType['tarefa'];
       log.info({ idConversa: idConversaNum, idTarefa: tarefa?.id, titulo }, 'tarefa criada automaticamente no Kanban');
     } catch (err) {
       log.warn({ err, idConversa: idConversaNum }, 'falha ao criar tarefa no Kanban — continua sem tarefa');

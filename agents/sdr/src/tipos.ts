@@ -128,6 +128,11 @@ export interface PayloadCalendly {
       end_time: string;
       name: string;
       uri: string;
+      location?: {
+        type?: string;
+        join_url?: string;
+        location?: string;
+      };
     };
     cancel_url?: string;
     reschedule_url?: string;
