@@ -374,14 +374,13 @@ export async function buscarTarefa(idConta: number, idTarefa: number): Promise<T
 export async function buscarContatoPorEmail(
   idConta: number,
   email: string,
-): Promise<{ id: number; ultima_conversa_id: number | null; tarefa_id: number | null } | null> {
-  const resultado = await chamar<{ payload: Array<{ id: number }> }>(
+): Promise<{ id: number; telefone: string | null; ultima_conversa_id: number | null; tarefa_id: number | null } | null> {
+  const resultado = await chamar<{ payload: Array<{ id: number; phone_number?: string }> }>(
     `/api/v1/accounts/${idConta}/contacts/search?q=${encodeURIComponent(email)}&page=1`,
   );
   const contato = resultado?.payload?.[0];
   if (!contato) return null;
 
-  // Busca conversas do contato para pegar a mais recente
   const conversas = await chamar<{ payload: Array<{ id: number; kanban_task?: { id: number } | null }> }>(
     `/api/v1/accounts/${idConta}/contacts/${contato.id}/conversations`,
   ).catch(() => ({ payload: [] }));
@@ -389,9 +388,31 @@ export async function buscarContatoPorEmail(
   const conversa = conversas?.payload?.[0] ?? null;
   return {
     id: contato.id,
+    telefone: contato.phone_number ?? null,
     ultima_conversa_id: conversa?.id ?? null,
     tarefa_id: conversa?.kanban_task?.id ?? null,
   };
+}
+
+export async function criarTarefaKanban(
+  idConta: number,
+  idFunil: number,
+  idEtapa: number,
+  titulo: string,
+  idConversa: number,
+): Promise<TarefaKanban> {
+  return chamar<TarefaKanban>(
+    `/api/v1/accounts/${idConta}/kanban/tasks`,
+    {
+      metodo: 'POST',
+      corpo: {
+        kanban_board_id: idFunil,
+        board_step_id: idEtapa,
+        title: titulo,
+        conversation_ids: [idConversa],
+      },
+    },
+  );
 }
 
 export async function buscarTarefaDaConversa(

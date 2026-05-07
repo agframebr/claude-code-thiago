@@ -7,12 +7,19 @@ import type { ContextoAgente } from '../tipos.ts';
 
 const log = createChildLogger({ modulo: 'tool.buscarAgendamentos' });
 
-export function criarBuscarAgendamentosDoContato(ctx: Pick<ContextoAgente, 'telefone'>) {
+export function criarBuscarAgendamentosDoContato(ctx: Pick<ContextoAgente, 'telefone' | 'nome'>) {
   return tool(
     async ({ id_profissional }) => {
       log.debug({ id_profissional, telefone: ctx.telefone }, 'buscarAgendamentos chamado');
       const calendarId = calendarIdParaProfissional(id_profissional);
-      const eventos = await listarEventos({ calendarId, q: ctx.telefone });
+
+      let eventos = await listarEventos({ calendarId, q: ctx.telefone });
+
+      // Fallback: busca pelo nome se não encontrou pelo telefone
+      if (!eventos.length && ctx.nome) {
+        eventos = await listarEventos({ calendarId, q: ctx.nome });
+      }
+
       log.debug({ qtd: eventos.length }, 'buscarAgendamentos ok');
       return JSON.stringify({ agendamentos: eventos });
     },

@@ -5,7 +5,8 @@
 import type { EstadoPrincipalType } from '../estado.ts';
 import { createChildLogger } from '../../../lib/logger.ts';
 import { config } from '../../../config.ts';
-import { buscarTarefaDaConversa } from '../../../lib/chatwoot.ts';
+import { buscarTarefaDaConversa, criarTarefaKanban } from '../../../lib/chatwoot.ts';
+import { ETAPAS_FUNIL, TELEFONE_THIAGO, TELEFONE_LETICIA } from '../../../dominio/vetrik.ts';
 
 const log = createChildLogger({ no: 'extrair_info' });
 
@@ -31,6 +32,26 @@ export async function extrairInfo(
   if (!tarefa && idConversaNum) {
     tarefa = await buscarTarefaDaConversa(config.CHATWOOT_ACCOUNT_ID, idConversaNum).catch(() => null) as EstadoPrincipalType['tarefa'];
     if (tarefa) log.debug({ idConversa: idConversaNum, idTarefa: tarefa.id }, 'tarefa buscada via API');
+  }
+
+  // Auto-cria card Kanban para lead sem tarefa (não gestores)
+  const nomeContato = String((sender as Record<string, unknown>).name ?? '');
+  const telefoneContato = String((sender as Record<string, unknown>).phone_number ?? (social as Record<string, string>).instagram ?? (sender as Record<string, unknown>).identifier ?? '');
+  const ehGestor = telefoneContato === TELEFONE_THIAGO || telefoneContato === TELEFONE_LETICIA;
+  if (!tarefa && idConversaNum && !ehGestor) {
+    try {
+      const titulo = nomeContato || telefoneContato || `Lead #${idConversaNum}`;
+      tarefa = await criarTarefaKanban(
+        config.CHATWOOT_ACCOUNT_ID,
+        config.KANBAN_BOARD_ID,
+        ETAPAS_FUNIL.mapeado.id,
+        titulo,
+        idConversaNum,
+      ) as EstadoPrincipalType['tarefa'];
+      log.info({ idConversa: idConversaNum, idTarefa: tarefa?.id, titulo }, 'tarefa criada automaticamente no Kanban');
+    } catch (err) {
+      log.warn({ err, idConversa: idConversaNum }, 'falha ao criar tarefa no Kanban — continua sem tarefa');
+    }
   }
 
   const funil = tarefa?.board ?? null;

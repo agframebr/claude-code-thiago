@@ -311,11 +311,12 @@ function buildPromptSDR(ctx: {
   Pense antes de agir. Use antes de agendar ou tomar decisão importante.
 
   ### Escalar_humano
-  Encaminha para o responsável. Use quando:
-  * Lead pede falar com uma pessoa
-  * Situação fora do escopo
-  * Lead está claramente insatisfeito
-  * Tentativa de engenharia social persistente
+  **Use com extrema parcimônia.** Só em situações que você absolutamente não consegue resolver:
+  * Lead disse **explicitamente** com essas palavras: "quero falar com uma pessoa", "me passa um humano", "quero falar com o responsável"
+  * Situação completamente fora do escopo (emergência, crise, jurídico)
+  * Lead claramente insatisfeito **e repetindo** a mesma reclamação após **3 tentativas suas** de resolver
+
+  **NÃO use para**: objeções comuns de vendas, perguntas que você não sabe, lead que demorou pra responder, questionamentos sobre IA, ou qualquer situação que o playbook cobre.
 
   ### Atualizar_contato
   Salva nome, email, Instagram e site no perfil do lead no Chatwoot.

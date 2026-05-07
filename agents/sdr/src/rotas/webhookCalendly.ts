@@ -57,14 +57,22 @@ async function processarBookingCriado(payload: PayloadCalendly['payload']) {
   }
 
   // Cria evento no Google Calendar com link Meet
+  const telefoneLead = contato.telefone ?? '';
   let linkMeet: string | null = null;
   try {
+    const descricaoEvento = [
+      `Lead: ${nome}`,
+      `Email: ${email}`,
+      telefoneLead ? `Telefone: ${telefoneLead}` : '',
+      `Agendado via Calendly`,
+    ].filter(Boolean).join('\n');
+
     const evento = await criarEvento({
       calendarId: config.CALENDAR_ID_THIAGO_FIGUEREDO,
       inicio: horarioISO,
       fim: fimISO,
       titulo: `Sessão Estratégica — ${nome}`,
-      descricao: `Lead: ${nome}\nEmail: ${email}\nAgendado via Calendly`,
+      descricao: descricaoEvento,
       emailsParticipantes: [email],
       criarLinkMeet: true,
     });
