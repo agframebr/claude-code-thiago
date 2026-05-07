@@ -28,8 +28,10 @@ export function rotaOAuth2Google(app: Elysia) {
         prompt: 'consent',
         scope: SCOPES,
       });
-      set.redirect = url;
-      return;
+      log.info({ url: url.slice(0, 100) }, 'oauth2 start - redirecionando');
+      set.status = 302;
+      set.headers['location'] = url;
+      return '';
     })
     .get('/oauth2/callback', async ({ query, set }) => {
       const code = query.code as string | undefined;
