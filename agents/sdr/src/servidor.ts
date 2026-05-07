@@ -10,8 +10,8 @@ export function criarServidor() {
     .use(rotaSaude)
     .use(rotaWebhookChatwoot)
     .use(rotaWebhookCalendly)
-    .onError(({ error, code }) => {
-      logger.error({ err: error, code }, 'erro não tratado no servidor');
+    .onError(({ error, code, request, path }) => {
+      logger.error({ err: error, code, method: request.method, path, url: request.url }, 'erro não tratado no servidor');
       return { erro: 'Erro interno', code };
     });
 
