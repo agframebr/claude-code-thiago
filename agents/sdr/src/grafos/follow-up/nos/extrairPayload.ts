@@ -10,13 +10,14 @@ export async function extrairPayloadFollowUp(
   const p = estado.payload_webhook;
   const evento = (p.event as string) as 'kanban_task_overdue' | 'kanban_task_updated';
 
-  const tarefa = (p.task ?? p.kanban_task ?? {}) as Record<string, unknown>;
+  // Chatwoot envia a tarefa no root do payload (kanban_task_updated/overdue)
+  const tarefa = (p.task ?? p.kanban_task ?? p) as Record<string, unknown>;
   const board = (tarefa.board ?? {}) as Record<string, unknown>;
   const boardStep = (tarefa.board_step ?? {}) as Record<string, unknown>;
 
   const id_tarefa = Number(tarefa.id ?? 0);
-  const id_funil = Number(board.id ?? 0);
-  const id_conta = Number((p.account as Record<string, unknown>)?.id ?? 0) || config.CHATWOOT_ACCOUNT_ID;
+  const id_funil = Number(board.id ?? (p as any).board_id ?? 0);
+  const id_conta = Number((p.account as Record<string, unknown>)?.id ?? (p as any).account_id ?? 0) || config.CHATWOOT_ACCOUNT_ID;
   const id_etapa_atual = String(boardStep.id ?? '');
   const nome_etapa_atual = String(boardStep.name ?? '');
   const titulo_tarefa = String(tarefa.title ?? '');
