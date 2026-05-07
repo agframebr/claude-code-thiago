@@ -70,6 +70,7 @@ export function criarCriarAgendamento(ctx: Pick<ContextoAgente, 'telefone' | 'id
           const linhasDescricao = [
             `📅 Sessão Estratégica agendada`,
             `Data: ${horarioFormatado}`,
+            `Quando: ${evento_inicio}`,
             `Telefone: ${ctx.telefone}`,
           ];
           if (email_lead) linhasDescricao.push(`Email: ${email_lead}`);

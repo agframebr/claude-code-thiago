@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { listarEventos } from '../lib/google-calendar.ts';
 import { calendarIdParaProfissional } from '../dominio/id-agendas.ts';
 import { createChildLogger } from '../lib/logger.ts';
+import { DateTime } from 'luxon';
 import type { ContextoAgente } from '../tipos.ts';
 
 const log = createChildLogger({ modulo: 'tool.buscarAgendamentos' });
@@ -12,28 +13,36 @@ export function criarBuscarAgendamentosDoContato(ctx: Pick<ContextoAgente, 'tele
     async ({ id_profissional }) => {
       log.debug({ id_profissional, telefone: ctx.telefone }, 'buscarAgendamentos chamado');
 
-      const agendamentos: Array<{ fonte: string; resumo: string; inicio?: string; link?: string }> = [];
+      const agora = DateTime.now();
+      const agendamentos: Array<{ fonte: string; resumo: string; inicio?: string; link?: string; passado?: boolean }> = [];
 
       // 1. Lê dados do agendamento da descrição da tarefa Kanban (fonte mais confiável)
       const descricao = ctx.tarefa?.description ?? '';
       if (descricao.includes('Sessão Estratégica agendada')) {
         const linhas = descricao.split('\n');
         const data = linhas.find((l) => l.startsWith('Data:'))?.replace('Data:', '').trim();
+        const quandoISO = linhas.find((l) => l.startsWith('Quando:'))?.replace('Quando:', '').trim();
         const meet = linhas.find((l) => l.startsWith('Meet:'))?.replace('Meet:', '').trim();
-        agendamentos.push({
-          fonte: 'kanban',
-          resumo: `Sessão Estratégica${data ? ` — ${data}` : ''}`,
-          inicio: data,
-          link: meet,
-        });
+        const dt = quandoISO ? DateTime.fromISO(quandoISO) : null;
+        const ehPassado = dt?.isValid ? dt < agora : false;
+        if (!ehPassado) {
+          agendamentos.push({
+            fonte: 'kanban',
+            resumo: `Sessão Estratégica${data ? ` — ${data}` : ''}`,
+            inicio: quandoISO ?? data,
+            link: meet,
+          });
+        }
       }
 
-      // 2. Busca no Google Calendar (eventos criados manualmente pela Ísys)
+      // 2. Busca no Google Calendar com timeMin=agora (filtra passados automaticamente)
       try {
         const calendarId = calendarIdParaProfissional(id_profissional);
-        let eventos = await listarEventos({ calendarId, q: ctx.telefone });
+        const timeMin = agora.toISO()!;
+        const timeMax = agora.plus({ months: 3 }).toISO()!;
+        let eventos = await listarEventos({ calendarId, q: ctx.telefone, timeMin, timeMax });
         if (!eventos.length && ctx.nome) {
-          eventos = await listarEventos({ calendarId, q: ctx.nome });
+          eventos = await listarEventos({ calendarId, q: ctx.nome, timeMin, timeMax });
         }
         for (const e of eventos) {
           agendamentos.push({
@@ -49,7 +58,7 @@ export function criarBuscarAgendamentosDoContato(ctx: Pick<ContextoAgente, 'tele
       }
 
       log.debug({ total: agendamentos.length }, 'buscarAgendamentos concluído');
-      return JSON.stringify({ agendamentos });
+      return JSON.stringify({ agendamentos, total_futuros: agendamentos.length });
     },
     {
       name: 'Buscar_agendamentos_do_contato',

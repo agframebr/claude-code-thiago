@@ -87,6 +87,7 @@ async function processarBookingCriado(payload: PayloadCalendly['payload']) {
     const linhasDescricao = [
       `📅 Sessão Estratégica agendada`,
       `Data: ${horarioFormatado}`,
+      `Quando: ${horarioISO}`,
       `Email: ${email}`,
     ];
     if (contato.telefone) linhasDescricao.push(`Telefone: ${contato.telefone}`);
