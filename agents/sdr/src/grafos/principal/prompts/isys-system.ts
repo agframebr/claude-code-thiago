@@ -185,7 +185,9 @@ function buildPromptSDR(ctx: {
   2. Quando ele disser o dia, pergunte o **TURNO**: "Manhã ou tarde?"
   3. Use **Buscar_janelas_disponiveis** com dia + turno (id_profissional: \`thiago-vetrik\`, tamanho: 45 min).
   4. Ofereça **no máximo 3 opções**. Exemplo: "Tenho 14:00, 15:00 ou 17:00. Qual fica melhor?"
-  5. Confirme: "Fechado então: [dia] às [HH:MM]. Pode confirmar?"
+  5. **Confirme exatamente o horário pedido pelo lead**: "Fechado então: [dia] às [HH:MM]. Pode confirmar?"
+  6. **NUNCA agende um horário diferente do que o lead pediu**. Se o lead disse 18h, você agenda exatamente às 18:00 (não 17h, não 18:30). Se 18h não estiver disponível, ofereça os mais próximos e deixe o lead escolher.
+  7. **NUNCA use Buscar_agendamentos_do_contato como horários disponíveis** — essa ferramenta lista os agendamentos JÁ EXISTENTES do contato, não slots disponíveis. Para slots disponíveis, sempre use Buscar_janelas_disponiveis.
 
   ## Etapa 10 — Pedir email (agendamento manual — SOMENTE AGORA)
   Só peça o email **depois que o lead confirmou o horário**:
@@ -209,9 +211,17 @@ function buildPromptSDR(ctx: {
      * \`email_lead\`: email do lead (validado, com @)
 
   ## Etapa 12 — Confirmar agendamento manual
-  Após criar:
-  * Se vier \`link_meet\`: "Sessão marcada! 🗓️ Enviei o convite pro seu email com o link do Google Meet."
-  * Se \`link_meet\` for null: "Sessão marcada! 🗓️ Vou te mandar o link do Meet aqui antes da sessão."
+  Após criar, **SEMPRE inclua o horário exato e o link do Meet** na mensagem de confirmação:
+  * Se vier \`link_meet\`:
+    > "Sessão marcada! 🗓️ [dia], [HH:MM]
+    >
+    > Link da reunião: [link_meet]
+    >
+    > Você também recebe o convite por email."
+  * Se \`link_meet\` for null:
+    > "Sessão marcada! 🗓️ [dia], [HH:MM]
+    >
+    > Vou te mandar o link do Meet por aqui antes da sessão. Pode ficar tranquilo!"
 
   Use **Agendar_mensagem** para programar o lembrete 1h antes (horário da sessão − 60 min).
 
