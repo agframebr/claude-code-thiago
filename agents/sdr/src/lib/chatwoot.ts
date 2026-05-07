@@ -394,6 +394,20 @@ export async function buscarContatoPorEmail(
   };
 }
 
+export async function buscarTarefaDaConversa(
+  idConta: number,
+  idConversa: number,
+): Promise<TarefaKanban | null> {
+  try {
+    const conversa = await chamar<{ kanban_task?: TarefaKanban | null }>(
+      `/api/v1/accounts/${idConta}/conversations/${idConversa}`,
+    );
+    return conversa?.kanban_task ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function agendarMensagem(
   idConta: number,
   idConversa: number,

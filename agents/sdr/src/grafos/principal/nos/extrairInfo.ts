@@ -5,6 +5,7 @@
 import type { EstadoPrincipalType } from '../estado.ts';
 import { createChildLogger } from '../../../lib/logger.ts';
 import { config } from '../../../config.ts';
+import { buscarTarefaDaConversa } from '../../../lib/chatwoot.ts';
 
 const log = createChildLogger({ no: 'extrair_info' });
 
@@ -23,7 +24,15 @@ export async function extrairInfo(
   const contentAttrs = (p.content_attributes as Record<string, unknown>) ?? {};
   const inboxRaw = (p.inbox as Record<string, unknown>) ?? {};
 
-  const tarefa = (conversa.kanban_task ?? null) as EstadoPrincipalType['tarefa'];
+  let tarefa = (conversa.kanban_task ?? null) as EstadoPrincipalType['tarefa'];
+  const idConversaNum = Number(conversa.id ?? 0);
+
+  // Fallback: webhook nem sempre inclui kanban_task — busca via API
+  if (!tarefa && idConversaNum) {
+    tarefa = await buscarTarefaDaConversa(config.CHATWOOT_ACCOUNT_ID, idConversaNum).catch(() => null) as EstadoPrincipalType['tarefa'];
+    if (tarefa) log.debug({ idConversa: idConversaNum, idTarefa: tarefa.id }, 'tarefa buscada via API');
+  }
+
   const funil = tarefa?.board ?? null;
 
   const out: Partial<EstadoPrincipalType> = {

@@ -1,4 +1,4 @@
-import type { Elysia } from 'elysia';
+import { type Elysia, t } from 'elysia';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { config } from '../config.ts';
 import { createChildLogger } from '../lib/logger.ts';
@@ -10,12 +10,20 @@ import { ETAPAS_FUNIL } from '../dominio/vetrik.ts';
 
 const log = createChildLogger({ rota: 'webhook-calendly' });
 
-function validarAssinatura(body: string, signature: string): boolean {
-  const hmac = createHmac('sha256', config.CALENDLY_WEBHOOK_SECRET);
-  hmac.update(body);
-  const esperado = hmac.digest('hex');
+// Header format: "t=TIMESTAMP,v1=SIGNATURE"
+function validarAssinatura(rawBody: string, headerAssinatura: string): boolean {
   try {
-    return timingSafeEqual(Buffer.from(esperado, 'hex'), Buffer.from(signature, 'hex'));
+    const partes = Object.fromEntries(
+      headerAssinatura.split(',').map((p) => p.split('=') as [string, string]),
+    );
+    const timestamp = partes['t'];
+    const v1 = partes['v1'];
+    if (!timestamp || !v1) return false;
+
+    const hmac = createHmac('sha256', config.CALENDLY_WEBHOOK_SECRET);
+    hmac.update(`${timestamp}.${rawBody}`);
+    const esperado = hmac.digest('hex');
+    return timingSafeEqual(Buffer.from(esperado, 'hex'), Buffer.from(v1, 'hex'));
   } catch {
     return false;
   }
@@ -89,20 +97,26 @@ Até já! 🚀`;
 
 export function rotaWebhookCalendly(app: Elysia) {
   return app.post('/webhook/calendly', async ({ body, headers, set }) => {
-    const rawBody = JSON.stringify(body);
-    const signature = (headers['calendly-webhook-signature'] as string) ?? '';
+    // body chega como string bruta (type: 'text') para preservar o conteúdo exato para HMAC
+    const rawBody = body as string;
+    const headerAssinatura = (headers['calendly-webhook-signature'] as string) ?? '';
 
-    if (!validarAssinatura(rawBody, signature)) {
-      log.warn('assinatura Calendly inválida');
+    if (config.CALENDLY_WEBHOOK_SECRET !== 'pendente' && !validarAssinatura(rawBody, headerAssinatura)) {
+      log.warn({ headerAssinatura }, 'assinatura Calendly inválida');
       set.status = 401;
       return { erro: 'assinatura inválida' };
     }
 
-    const payload = body as PayloadCalendly;
+    let payload: PayloadCalendly;
+    try {
+      payload = JSON.parse(rawBody) as PayloadCalendly;
+    } catch {
+      set.status = 400;
+      return { erro: 'body inválido' };
+    }
     log.info({ event: payload.event }, 'webhook Calendly recebido');
 
     set.status = 200;
-
     if (payload.event === 'invitee.created') {
       setImmediate(() => {
         processarBookingCriado(payload.payload).catch((err) =>
@@ -112,5 +126,5 @@ export function rotaWebhookCalendly(app: Elysia) {
     }
 
     return { ok: true };
-  });
+  }, { body: t.String() });
 }
