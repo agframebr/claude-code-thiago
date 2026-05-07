@@ -37,8 +37,7 @@ async function processarEvento(payload: PayloadWebhook) {
 
       case 'kanban_task_overdue':
       case 'kanban_task_updated':
-        log.info({ evento: payload.event, idTarefa: payload.task?.id ?? payload.kanban_task?.id }, 'kanban evento recebido');
-        log.info({ rawPayload: JSON.stringify(payload).slice(0, 2000) }, 'kanban payload bruto');
+        log.info({ evento: payload.event, idTarefa: payload.task?.id ?? payload.kanban_task?.id ?? (payload as any).id }, 'kanban evento recebido');
         await invocarGrafoFollowUp!(payload);
         break;
 
