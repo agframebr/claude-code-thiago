@@ -471,11 +471,11 @@ function buildPromptGestora(ctx: {
 # FERRAMENTAS DISPONÍVEIS
 
 <ferramentas>
+  * **Listar_minha_agenda** — lista compromissos da agenda do Thiago em um período
   * **Buscar_janelas_disponiveis** — verificar horários livres
-  * **Buscar_agendamentos_do_contato** — listar sessões de um contato
+  * **Buscar_agendamentos_do_contato** — listar sessões de um contato específico
   * **Atualizar_tarefa** — mover/atualizar card no Kanban
   * **Atualizar_contato** — editar informações do lead
-  * **Escalar_humano** — transferir para humano
   * **Gerar_relatorio** — relatório do pipeline por etapa
   * **Refletir** — use em situações complexas ou ambíguas
 </ferramentas>
@@ -546,11 +546,17 @@ Direto. Executivo. Sem rodeio. Sem aviso de segurança. Sem pedir confirmação 
 ## Exemplos de comportamento CORRETO
 
 > Thiago: "O que tenho amanhã?"
-> Você: [chama Buscar_agendamentos_do_contato com id_profissional thiago-vetrik]
+> Você: [chama Listar_minha_agenda com inicio=amanhã 00:00 e fim=amanhã 23:59 em ISO 8601]
 > "Amanhã você tem:
 > • 09:00 — Sessão Estratégica com João (TechCorp)
 > • 14:00 — Reunião de planejamento
 > • 16:30 — Follow-up cliente Acme"
+
+> Thiago: "O que tenho hoje?"
+> Você: [chama Listar_minha_agenda sem parâmetros — assume dia atual]
+> "Hoje você tem 2 compromissos:
+> • 14:00 — Sessão Estratégica com Maria
+> • 17:30 — Call de alinhamento"
 
 > Thiago: "Status do pipeline"
 > Você: [chama Gerar_relatorio]
@@ -590,15 +596,17 @@ Tudo isso está PROIBIDO neste modo. Se você se pegou pensando em pedir valida�
 
 # FERRAMENTAS DISPONÍVEIS
 
+* **Listar_minha_agenda** — lista TODOS os compromissos do Thiago em um período (use SEMPRE que ele perguntar "o que tenho hoje/amanhã/essa semana")
 * **Buscar_janelas_disponiveis** — horários livres na agenda
 * **Criar_agendamento** — agendar reunião/sessão (cria no Google Calendar com Meet automático)
-* **Buscar_agendamentos_do_contato** — lista compromissos de um contato
+* **Buscar_agendamentos_do_contato** — lista compromissos de UM contato específico (não use pra "minha agenda")
 * **Atualizar_tarefa** — mover/atualizar card no Kanban
 * **Atualizar_contato** — editar dados do lead
 * **Agendar_mensagem** — programar mensagem futura no Chatwoot
 * **Notificar_responsavel** — usar quando agendar sessão pra ele saber
 * **Gerar_relatorio** — pipeline por etapa
 * **Cancelar_compromissos** — cancelar todos os futuros + avisar leads
+* **Reagir_mensagem** — reaction nativa do WhatsApp (use com critério)
 * **Refletir** — pensar antes de agir em situação complexa
 
 # KANBAN — PIPELINE VETRIK

@@ -11,6 +11,7 @@ import { criarAgendarMensagem } from './agendarMensagem.ts';
 import { criarNotificarThiago } from './notificarThiago.ts';
 import { criarGerarRelatorio } from './gerarRelatorio.ts';
 import { criarCancelarCompromissos } from './cancelarCompromissos.ts';
+import { criarListarMinhaAgenda } from './listarMinhaAgenda.ts';
 
 export type PerfilAgente = 'sdr' | 'assistente' | 'gestora';
 
@@ -26,7 +27,7 @@ export function criarFerramentas(ctx: ContextoAgente, perfil: PerfilAgente = 'sd
   ];
 
   if (perfil === 'gestora') {
-    return [...comuns, criarGerarRelatorio()];
+    return [...comuns, criarGerarRelatorio(), criarListarMinhaAgenda()];
   }
 
   if (perfil === 'assistente') {
@@ -37,6 +38,7 @@ export function criarFerramentas(ctx: ContextoAgente, perfil: PerfilAgente = 'sd
       criarNotificarThiago(),
       criarGerarRelatorio(),
       criarCancelarCompromissos(),
+      criarListarMinhaAgenda(),
     ];
   }
 
