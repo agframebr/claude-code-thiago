@@ -4,12 +4,14 @@ import { logger } from './lib/logger.ts';
 import { rotaSaude } from './rotas/saude.ts';
 import { rotaWebhookChatwoot } from './rotas/webhookChatwoot.ts';
 import { rotaWebhookCalendly } from './rotas/webhookCalendly.ts';
+import { rotaOAuth2Google } from './rotas/oauth2Google.ts';
 
 export function criarServidor() {
   const app = new Elysia()
     .use(rotaSaude)
     .use(rotaWebhookChatwoot)
     .use(rotaWebhookCalendly)
+    .use(rotaOAuth2Google)
     .onError(({ error, code, request, path }) => {
       logger.error({ err: error, code, method: request.method, path, url: request.url }, 'erro não tratado no servidor');
       return { erro: 'Erro interno', code };
