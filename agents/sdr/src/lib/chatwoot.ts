@@ -393,17 +393,23 @@ export async function resolverContatoEConversa(
   idInbox: number,
   nomeContato?: string,
 ): Promise<{ idContato: number; idConversa: number }> {
+  const identifier = whatsappJid(telefone);
+
   // 1. Tenta achar contato existente
-  let contato = await buscarContatoPorTelefone(idConta, telefone);
+  let contato = await buscarContatoPorTelefone(idConta, telefone) as { id: number; identifier?: string | null } | null;
 
   // 2. Cria se não existir
   if (!contato) {
     const novo = await criarContato(idConta, {
       nome: nomeContato || telefone,
       telefone,
+      identifier,
       idInbox,
     });
     contato = { id: novo.id };
+  } else if (!contato.identifier) {
+    // Garante que o identifier está setado para Baileys rotear outbound
+    await atualizarContato(idConta, contato.id, { identifier });
   }
 
   // 3. Busca conversas do contato
@@ -536,13 +542,29 @@ export async function listarTarefasKanban(
 /**
  * Cria contato no Chatwoot. Falha se phone_number já existir.
  */
+export function whatsappJid(telefone: string): string {
+  return `${telefone.replace(/^\+/, '')}@s.whatsapp.net`;
+}
+
+export async function atualizarContato(
+  idConta: number,
+  idContato: number,
+  campos: Record<string, unknown>,
+): Promise<void> {
+  await chamar(`/api/v1/accounts/${idConta}/contacts/${idContato}`, {
+    metodo: 'PATCH',
+    corpo: campos,
+  }).catch(() => {});
+}
+
 export async function criarContato(
   idConta: number,
-  campos: { nome: string; email?: string; telefone?: string; idInbox?: number },
+  campos: { nome: string; email?: string; telefone?: string; identifier?: string; idInbox?: number },
 ): Promise<{ id: number; phone_number?: string; email?: string }> {
   const corpo: Record<string, unknown> = { name: campos.nome };
   if (campos.email) corpo.email = campos.email;
   if (campos.telefone) corpo.phone_number = campos.telefone;
+  if (campos.identifier) corpo.identifier = campos.identifier;
   if (campos.idInbox) corpo.inbox_id = campos.idInbox;
   const r = await chamar<{ payload: { contact: { id: number; phone_number?: string; email?: string } } } | { id: number }>(
     `/api/v1/accounts/${idConta}/contacts`,
@@ -559,9 +581,9 @@ export async function criarContato(
 export async function buscarContatoPorTelefone(
   idConta: number,
   telefone: string,
-): Promise<{ id: number; email?: string; phone_number?: string } | null> {
+): Promise<{ id: number; email?: string; phone_number?: string; identifier?: string | null } | null> {
   try {
-    const r = await chamar<{ payload: Array<{ id: number; email?: string; phone_number?: string }> }>(
+    const r = await chamar<{ payload: Array<{ id: number; email?: string; phone_number?: string; identifier?: string | null }> }>(
       `/api/v1/accounts/${idConta}/contacts/search?q=${encodeURIComponent(telefone)}&page=1`,
     );
     return r?.payload?.[0] ?? null;
