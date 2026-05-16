@@ -224,7 +224,7 @@ export function rotaWebhookCalendly(app: Elysia) {
     const rawBody = body as string;
     const headerAssinatura = (headers['calendly-webhook-signature'] as string) ?? '';
 
-    if (config.CALENDLY_WEBHOOK_SECRET !== 'pendente' && !validarAssinatura(rawBody, headerAssinatura)) {
+    if (!validarAssinatura(rawBody, headerAssinatura)) {
       log.warn({ headerAssinatura }, 'assinatura Calendly inválida');
       set.status = 401;
       return { erro: 'assinatura inválida' };

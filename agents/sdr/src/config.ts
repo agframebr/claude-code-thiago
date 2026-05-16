@@ -45,7 +45,10 @@ const esquema = z.object({
 
   // Calendly
   CALENDLY_LINK: z.string().url('CALENDLY_LINK deve ser uma URL válida'),
-  CALENDLY_WEBHOOK_SECRET: z.string().min(1, 'CALENDLY_WEBHOOK_SECRET obrigatório'),
+  CALENDLY_WEBHOOK_SECRET: z.string().min(32, 'CALENDLY_WEBHOOK_SECRET deve ter pelo menos 32 chars'),
+
+  // Admin (token das rotas /admin/*) — separado do Calendly por princípio de least-privilege
+  ADMIN_TOKEN: z.string().min(32, 'ADMIN_TOKEN deve ter pelo menos 32 chars'),
 
   // Escalação humana
   TELEFONE_THIAGO: z.string().default('+5562998311402'),
