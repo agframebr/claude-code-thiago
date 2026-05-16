@@ -1,4 +1,5 @@
 import { type Elysia } from 'elysia';
+import { timingSafeEqual } from 'node:crypto';
 import { config } from '../config.ts';
 import {
   calcularMetricasPipeline,
@@ -14,10 +15,12 @@ import { ETAPAS_FUNIL } from '../dominio/vetrik.ts';
 import { createChildLogger } from '../lib/logger.ts';
 
 const log = createChildLogger({ rota: 'dashboard' });
-const TOKEN_ADMIN = config.CALENDLY_WEBHOOK_SECRET;
+const TOKEN_ADMIN_BUF = Buffer.from(config.ADMIN_TOKEN, 'utf8');
 
 function autorizar(token: string): boolean {
-  return token === TOKEN_ADMIN;
+  const candidato = Buffer.from(token ?? '', 'utf8');
+  if (candidato.length !== TOKEN_ADMIN_BUF.length) return false;
+  return timingSafeEqual(candidato, TOKEN_ADMIN_BUF);
 }
 
 export function rotaDashboard(app: Elysia) {
@@ -111,7 +114,7 @@ export function rotaDashboard(app: Elysia) {
       return {
         chatwoot: { base_url: config.CHATWOOT_BASE_URL, account_id: config.CHATWOOT_ACCOUNT_ID, inbox_id: config.CHATWOOT_INBOX_ID },
         kanban: { board_id: config.KANBAN_BOARD_ID, etapas: ETAPAS_FUNIL },
-        calendly: { link: config.CALENDLY_LINK, secret_configurado: config.CALENDLY_WEBHOOK_SECRET !== 'pendente' },
+        calendly: { link: config.CALENDLY_LINK, secret_configurado: config.CALENDLY_WEBHOOK_SECRET.length >= 32 },
         google: { calendar_id: config.CALENDAR_ID_THIAGO_FIGUEREDO, oauth2_configurado: !!config.GOOGLE_OAUTH2_REFRESH_TOKEN },
         openai: { modelo: config.OPENAI_MODEL, modelo_formatter: config.OPENAI_MODEL_FORMATTER },
         elevenlabs: { voice_id: config.ELEVENLABS_VOICE_ID },
