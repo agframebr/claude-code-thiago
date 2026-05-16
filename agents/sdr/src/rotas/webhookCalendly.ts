@@ -29,10 +29,22 @@ function validarAssinatura(rawBody: string, headerAssinatura: string): boolean {
     const v1 = partes['v1'];
     if (!timestamp || !v1) return false;
 
+    // Auditoria #23: anti-replay — rejeita evento mais velho que 5min.
+    // Sem isso, atacante que capturou um POST legitimo (e.g. via proxy
+    // intermediario) podia replay-ar indefinidamente, criando booking
+    // notifications duplicadas / spoof.
+    const ts = Number(timestamp);
+    if (!Number.isFinite(ts)) return false;
+    const skew = Math.abs(Date.now() / 1000 - ts);
+    if (skew > 300) return false;
+
     const hmac = createHmac('sha256', config.CALENDLY_WEBHOOK_SECRET);
     hmac.update(`${timestamp}.${rawBody}`);
     const esperado = hmac.digest('hex');
-    return timingSafeEqual(Buffer.from(esperado, 'hex'), Buffer.from(v1, 'hex'));
+    const a = Buffer.from(esperado, 'hex');
+    const b = Buffer.from(v1, 'hex');
+    if (a.length !== b.length || a.length === 0) return false;
+    return timingSafeEqual(a, b);
   } catch {
     return false;
   }
